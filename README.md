@@ -18,3 +18,50 @@ Feel free to use the code as you like, but please do not expect any response or 
 **Exception**
 I may occasionally respond to requests from personal contacts (e.g., discussion through at academic conferences in Japan related to navigation), but this is strictly on a private and case-by-case basis.
 
+## How to Use
+
+### 1. Requirements
+- Python 3.11 or later
+
+Install the required package:
+
+
+pip install pyserial
+
+
+---
+
+### 2. Setup
+
+- Install the appropriate u-blox USB driver on your Windows PC  
+- Connect your u-blox receiver via USB  
+
+---
+
+### 3. Run
+
+Start the application:
+
+
+python main.py
+
+
+The GUI will appear.
+
+---
+
+### 4. Usage
+
+- Select the serial port from the **Port** dropdown menu  
+- Click the **Connect** button  
+- Enable the **UBX checkbox** if you want to record UBX log files  
+
+---
+
+### Notes
+
+This software is still under development.  
+You may encounter bugs or incomplete features.
+
+Feel free to explore and use it as you like.  
+Use at your own risk :)
