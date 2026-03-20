@@ -15,6 +15,7 @@ Issues are disabled.
 - No support or feature requests will be provided.
 
 Feel free to use the code as you like, but please do not expect any response or maintenance.
+
 **Exception**
 I may occasionally respond to requests from personal contacts (e.g., discussion through at academic conferences in Japan related to navigation), but this is strictly on a private and case-by-case basis.
 
