@@ -43,7 +43,7 @@ pip install pyserial
 Start the application:
 
 
-python main.py
+python ubxMonitor.py
 
 
 The GUI will appear.
