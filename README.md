@@ -47,6 +47,7 @@ python ubxMonitor.py
 
 
 The GUI will appear.
+<img width="1852" height="952" alt="image" src="https://github.com/user-attachments/assets/22cb5ef5-b40d-454b-b925-8536c29aced9" />
 
 ---
 
@@ -55,6 +56,24 @@ The GUI will appear.
 - Select the serial port from the **Port** dropdown menu  
 - Click the **Connect** button  
 - Enable the **UBX checkbox** if you want to record UBX log files  
+<img width="430" height="46" alt="image" src="https://github.com/user-attachments/assets/e43a3570-8928-495b-8644-fc744b46a721" />
+
+-if you want to use ubx log, **Select File** and **PLAY**.
+
+Navigation Settings shows your receiver's setting.
+You can change through **Load** and **Apply** button.
+<img width="565" height="53" alt="image" src="https://github.com/user-attachments/assets/6c80fb0a-004e-483b-81b2-437a3bfe239e" />
+
+**Main GUI** shows signal reception status from RAWX and MEASX.
+<img width="1684" height="492" alt="image" src="https://github.com/user-attachments/assets/ec67d8be-2819-4a2c-8d26-3dac30c72d1d" />
+
+**SFRBX Monitor** shows reception status of Navigation data.
+<img width="1757" height="555" alt="image" src="https://github.com/user-attachments/assets/e2bdf38b-ffdd-4f4e-992d-975ebb54b54d" />
+
+**Trend Monitor** shows 5 minutes trend of RAW-MEASX.
+<img width="1282" height="559" alt="image" src="https://github.com/user-attachments/assets/2f913845-e0ca-4060-b2a4-051fcc84b7d8" />
+
+
 
 ---
 
