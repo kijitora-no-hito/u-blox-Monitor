@@ -22,7 +22,9 @@ I may occasionally respond to requests from personal contacts (e.g., discussion 
 ## How to Use
 
 ### 1. Requirements
+- Windows 11 with FUll HD or 4K monitor
 - Python 3.11 or later
+
 
 Install the required package:
 
