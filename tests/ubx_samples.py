@@ -15,14 +15,16 @@ SATELLITES = (
 )
 
 
-def nav_pvt(itow, lat=35.6812, lon=139.7671, carrier=2, num_sv=12):
+def nav_pvt(itow, lat=35.6812, lon=139.7671, carrier=2, num_sv=12, correction_age=0):
     """NAV-PVT を作る。carrier は 0: なし、1: Float、2: Fixed。"""
     second = itow // 1000 % 60
     payload = struct.pack(
         "<IHBBBBBBIiBBBBiiiiIIiiiiiIIH", itow, 2026, 11, 17, 3, itow // 60000 % 60, second,
         0x07, 20, 0, 3, 0x01 | 0x02 | (carrier << 6), 0, num_sv, round(lon * 1e7),
         round(lat * 1e7), 45123, 8456, 14, 21, 0, 0, 0, 1250, 9000000, 50, 100000, 120)
-    return ubx.build(ubx.NAV_PVT, payload.ljust(92, b"\x00"))
+    payload = bytearray(payload.ljust(92, b"\x00"))
+    struct.pack_into("<H", payload, 78, correction_age << 1)
+    return ubx.build(ubx.NAV_PVT, bytes(payload))
 
 
 def nav_sat(itow):
@@ -75,13 +77,36 @@ def mon_ver(module="ZED-F9P", protver="27.50", hardware="00190000"):
     return ubx.build(ubx.MON_VER, payload)
 
 
+def mon_span(phase=0):
+    """MON-SPAN を作る(L1 帯と L2/L5 帯の 2 ブロック)。信号の帯域が少し持ち上がった形にする。
+
+    phase を変えると細かい揺らぎが変わる(最大値ホールドの確認用)。
+    """
+    payload = bytes((0, 2, 0, 0))
+    for center, bumps in ((1583.4e6, (1575.42, 1561.098, 1602.0)),
+                          (1214.0e6, (1227.60, 1176.45, 1207.14, 1246.0))):
+        span, res = 128_000_000, 500_000
+        levels = []
+        for index in range(256):
+            freq = (center + span * (index - 128) / 256) / 1e6
+            level = 150 + 6 * math.sin(index / 9) + 4 * math.sin(index * 1.7 + phase * 2.3)
+            level += sum(40 * math.exp(-((freq - bump) / 4) ** 2) for bump in bumps)
+            edge = min(index, 255 - index)
+            level -= max(0, 30 - edge) * 2
+            levels.append(max(0, min(255, round(level))))
+        payload += bytes(levels) + struct.pack("<IIIB3x", span, res, round(center), 54)
+    return ubx.build(ubx.MON_SPAN, payload)
+
+
 def log(seconds=30, start_itow=100000):
     """seconds 秒分の 1 Hz のログを作る。位置は少しずつ北東へ動く。"""
     data = mon_ver()
     for index in range(seconds):
         itow = start_itow + index * 1000
         carrier = 2 if index % 10 < 7 else 1
-        data += nav_pvt(itow, 35.6812 + index * 2e-6, 139.7671 + index * 3e-6, carrier)
+        data += nav_pvt(itow, 35.6812 + index * 2e-6, 139.7671 + index * 3e-6, carrier,
+                        correction_age=2)
         data += nav_sat(itow) + rxm_rawx(itow / 1000) + rxm_measx(itow)
         data += rxm_sfrbx(0, 5, index % 5 + 1) + rxm_sfrbx(5, 2, index % 3 + 1)
+        data += mon_span(index)
     return data

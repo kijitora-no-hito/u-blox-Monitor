@@ -71,7 +71,14 @@ SIGNAL_ITEMS = (
     Item("GLO_L1", "GLONASS L1", 0x10310018), Item("GLO_L2", "GLONASS L2", 0x1031001A),
     Item("NAVIC_L5", "NavIC L5", 0x1031001D),
 )
-ITEMS = NAV_ITEMS + SYSTEM_ITEMS + SIGNAL_ITEMS
+INPUT_ITEMS = (
+    Item("RTCM3_USB", "RTCM3 入力(USB)", 0x10770004),
+    Item("RTCM3_UART1", "RTCM3 入力(UART1)", 0x10730004),
+    Item("RTCM3_UART2", "RTCM3 入力(UART2)", 0x10750004),
+)
+# 受信機側のポート名 → RTCM3 入力の項目 ID
+RTCM3_INPUT = {"USB": "RTCM3_USB", "UART1": "RTCM3_UART1", "UART2": "RTCM3_UART2"}
+ITEMS = NAV_ITEMS + SYSTEM_ITEMS + SIGNAL_ITEMS + INPUT_ITEMS
 ITEM_BY_IDENT = {item.ident: item for item in ITEMS}
 _TRACKING_IDENTS = {item.ident for item in SYSTEM_ITEMS + SIGNAL_ITEMS}
 
@@ -194,8 +201,11 @@ class SettingsPanel(QWidget):  # pylint: disable=too-many-instance-attributes
         self.system_group, self._system_grid = self._build_checks("衛星系", SYSTEM_ITEMS)
         self.signal_group, self._signal_grid = self._build_checks(
             "信号(受信機が対応するものだけ表示)", SIGNAL_ITEMS)
+        self.input_group, self._input_grid = self._build_checks(
+            "入力プロトコル(RTCM3 補正情報を受け付けるポート)", INPUT_ITEMS)
         body_layout.addWidget(self.system_group)
         body_layout.addWidget(self.signal_group)
+        body_layout.addWidget(self.input_group)
         body_layout.addStretch(1)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -273,8 +283,10 @@ class SettingsPanel(QWidget):  # pylint: disable=too-many-instance-attributes
         keyed = uses_keys(gen)
         self.system_group.setVisible(keyed)
         self.signal_group.setVisible(keyed)
+        self.input_group.setVisible(keyed)
         for items, grid, hide_unknown in ((SYSTEM_ITEMS, self._system_grid, False),
-                                          (SIGNAL_ITEMS, self._signal_grid, True)):
+                                          (SIGNAL_ITEMS, self._signal_grid, True),
+                                          (INPUT_ITEMS, self._input_grid, False)):
             visible = []
             for item in items:
                 box = self._checks[item.ident]

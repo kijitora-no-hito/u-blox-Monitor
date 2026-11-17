@@ -79,6 +79,8 @@ class Pipeline:  # pylint: disable=too-many-instance-attributes
         self.nav5 = None        # CFG-NAV5 のペイロード(M8)
         self.rate = None        # CFG-RATE(M8)
         self.acks = []          # [(成功か, (クラス, ID))]
+        self.spectrum = None    # 最新の MON-SPAN [ブロック]
+        self.spectrum_count = 0
         self.on_epoch = None    # エポックが進んだときに呼ぶ関数(引数は進んだ秒数)
         self._epoch_msg = None
         self._epoch_tow = None
@@ -155,6 +157,11 @@ class Pipeline:  # pylint: disable=too-many-instance-attributes
                 self.version = version
                 self.log(f"受信機: {version['gen']} {version['module']} HW {version['hw']} "
                          f"SW {version['sw']} PROTVER {version['protver']}")
+        elif msg == ubx.MON_SPAN:
+            blocks = ubx.parse_mon_span(payload)
+            if blocks:
+                self.spectrum = blocks
+                self.spectrum_count += 1
         elif msg == ubx.CFG_VALGET:
             self.cfg_values.update(ubx.parse_valget(payload))
         elif msg == ubx.CFG_NAV5 and len(payload) >= 36:

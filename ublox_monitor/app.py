@@ -9,19 +9,23 @@ import os
 import queue
 import sys
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QStandardPaths, Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QGridLayout, QGroupBox,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit,
     QProgressBar, QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
     QVBoxLayout, QWidget)
 
+from . import __version__
 from . import charts
+from . import rtcm
 from . import serial_link as link
 from . import settings
 from . import ubx
+from .correction_view import CorrectionPanel
 from .map_view import MapPanel
 from .monitor_view import MonitorPanel
+from .spectrum_view import SpectrumPanel
 
 APP_NAME = "u-blox Monitor"
 REFRESH_MS = 250
@@ -40,8 +44,18 @@ MODE_STYLE = ("color: white; background-color: %s; font-size: 22px; font-weight:
 STATUS_ROWS = (("utc", "時刻(UTC)"), ("lat", "緯度"), ("lon", "経度"), ("height", "楕円体高"),
                ("msl", "標高(MSL)"), ("nrsv", "使用衛星数"), ("hacc", "水平精度"),
                ("vacc", "垂直精度"), ("pdop", "PDOP"), ("speed", "速度"), ("heading", "進行方位"),
+               ("correction", "RTK 補正"),
                ("messages", "受信メッセージ"), ("errors", "チェックサムエラー"),
                ("record", "記録"))
+
+
+def default_folder():
+    """記録の既定の保存先を返す。exe 版はインストール先に書けないことがあるのでドキュメントにする。"""
+    if getattr(sys, "frozen", False):
+        documents = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation)
+        return os.path.join(documents, "ublox_monitor")
+    return os.path.join(os.getcwd(), "logs")
 
 
 def make_table(columns):
@@ -148,7 +162,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(APP_NAME)
+        self.setWindowTitle(f"{APP_NAME} {__version__}")
         self.resize(1400, 900)
         self.pipeline = link.Pipeline()
         self.source = None
@@ -159,6 +173,9 @@ class MainWindow(QMainWindow):
         self._pending_ticks = 0
         self._awaiting_ack = False
         self._acks_seen = 0
+        self.correction = None
+        self._forward = True
+        self._correction_logged = None
         self._build_ui()
         self.refresh_ports()
         self.timer = QTimer(self)
@@ -178,8 +195,12 @@ class MainWindow(QMainWindow):
         self.map_panel = MapPanel()
         self.settings_panel = settings.SettingsPanel(self.read_settings, self.send_settings)
         self.monitor_panel = MonitorPanel()
+        self.spectrum_panel = SpectrumPanel()
+        self.correction_panel = CorrectionPanel(self.toggle_correction, self.enable_rtcm_input)
         self.tabs.addTab(self._build_main_tab(), "メイン")
         self.tabs.addTab(self.map_panel, "地図")
+        self.tabs.addTab(self.correction_panel, "RTK 補正")
+        self.tabs.addTab(self.spectrum_panel, "スペクトル")
         self.tabs.addTab(self.settings_panel, "受信機設定")
         self.tabs.addTab(self.monitor_panel, "u-blox モニター")
         layout.addWidget(self.tabs, 1)
@@ -222,7 +243,7 @@ class MainWindow(QMainWindow):
     def _build_record_bar(self):
         """記録・再生の操作列を作る。"""
         row = QHBoxLayout()
-        self.folder_edit = QLineEdit(os.path.join(os.getcwd(), "logs"))
+        self.folder_edit = QLineEdit(default_folder())
         folder_button = QPushButton("参照")
         folder_button.clicked.connect(self.choose_folder)
         self.record_button = QPushButton("記録開始")
@@ -342,6 +363,7 @@ class MainWindow(QMainWindow):
         self.pipeline = pipeline
         self._acks_seen = 0
         self.pvt_panel.clear()
+        self.spectrum_panel.reset()
         self.source = source
         source.start()
         self._update_buttons()
@@ -496,6 +518,100 @@ class MainWindow(QMainWindow):
             "受信機が設定を受け付けました。" if all(replies)
             else "受信機が設定を拒否しました(NAK)。値の範囲や対応状況を確認してください。")
 
+    # ---- RTK 補正 ----
+
+    def _correction_running(self):
+        """補正情報を受信中か。"""
+        return self.correction is not None and self.correction.is_alive()
+
+    def toggle_correction(self):
+        """補正情報の受信を開始/停止する。"""
+        panel = self.correction_panel
+        if self._correction_running():
+            self.correction.stop()
+            self.pipeline.log("補正情報の受信を停止しました")
+            panel.set_running(False)
+            return
+        try:
+            config = panel.config()
+        except ValueError as exc:
+            panel.message_label.setText(str(exc))
+            return
+        panel.save()
+        self._forward = panel.forward_check.isChecked()
+        self.correction = rtcm.CorrectionSource(config, self._forward_correction, self._gga)
+        self._correction_logged = None
+        self.correction.start()
+        target = config.get("mount") or config.get("host") or config.get("port")
+        self.pipeline.log(f"補正情報の受信を開始: {target}")
+        panel.message_label.setText("" if self._is_serial() else
+                                    "受信機が未接続です。接続すると受信機へ転送します。")
+        panel.set_running(True)
+
+    def _forward_correction(self, data):
+        """受信した補正情報を受信機へ送る(補正の受信スレッドから呼ばれる)。"""
+        source = self.source
+        if self._forward and isinstance(source, link.SerialSource) and source.is_alive():
+            source.send([data])
+
+    def _gga(self):
+        """キャスターへ送る GGA 文を返す(補正の受信スレッドから呼ばれる)。"""
+        return rtcm.build_gga(self.pipeline.state.pvt)
+
+    def enable_rtcm_input(self):
+        """接続中のポートで RTCM3 の入力を受け付けるよう、受信機を設定する(RAM のみ)。"""
+        panel = self.correction_panel
+        if not self._is_serial():
+            panel.message_label.setText("受信機に接続してから押してください。")
+            return
+        gen = self._generation()
+        if not settings.uses_keys(gen):
+            panel.message_label.setText("M8 世代の RTCM 入力の設定には対応していません。")
+            return
+        port = self._receiver_port()
+        item = settings.ITEM_BY_IDENT[settings.RTCM3_INPUT[port]]
+        self.source.send([ubx.build_valset({item.key: 1})])
+        self.pipeline.log(f"{item.label} を有効にしました(RAM)")
+        panel.message_label.setText(f"{item.label} を有効にしました(RAM のみ。電源を切ると戻ります)。")
+
+    def _update_correction(self):
+        """RTK 補正のタブを更新する。"""
+        panel = self.correction_panel
+        running = self._correction_running()
+        self._forward = panel.forward_check.isChecked()
+        panel.set_running(running)
+        snap = self.correction.snapshot() if self.correction else None
+        pvt = self.pipeline.state.pvt
+        station = snap["station"] if snap else None
+        panel.update_view(snap, pvt, rtcm.baseline(station, pvt))
+
+    def _check_correction(self):
+        """補正の受信が止まったら(エラーなど)ログに出す。"""
+        source = self.correction
+        if source is None or source.is_alive() or self._correction_logged is source:
+            return
+        self._correction_logged = source
+        if source.error:
+            self.pipeline.log(f"補正情報の受信が止まりました: {source.error}")
+            self.correction_panel.message_label.setText(f"受信が止まりました: {source.error}")
+
+    def _correction_text(self, pvt):
+        """メインタブに出す RTK 補正の状態。"""
+        age = pvt.correction_age_text if pvt else "—"
+        if not self._correction_running():
+            return f"停止中(経過 {age})" if pvt and pvt.correction_age else "停止中"
+        snap = self.correction.snapshot()
+        return f"受信中 {snap['rate'] * 8 / 1000:.1f} kbps(経過 {age})"
+
+    def _update_spectrum(self):
+        """スペクトルのタブを更新する。接続中は 1 秒ごとに MON-SPAN を要求する。"""
+        connected = self._is_serial()
+        panel = self.spectrum_panel
+        if connected and panel.poll_check.isChecked() and self._tick % SLOW_TICKS == 0:
+            self.source.send([ubx.build(ubx.MON_SPAN)])
+            panel.polls += 1
+        panel.update_from(self.pipeline.spectrum, self.pipeline.spectrum_count, connected)
+
     # ---- 表示の更新 ----
 
     def _drain_log(self):
@@ -545,6 +661,7 @@ class MainWindow(QMainWindow):
         self.mode_label.setStyleSheet(MODE_STYLE % FIX_COLORS[rank])
         self.status["messages"].setText(message_text(snap["counts"]))
         self.status["errors"].setText(str(self.pipeline.stream.checksum_errors))
+        self.status["correction"].setText(self._correction_text(snap["pvt"]))
         log = self.pipeline.log_status()
         self.status["record"].setText(
             f"{os.path.basename(log[0])}\n{log[1] / 1e6:.1f} MB" if log else "停止中")
@@ -566,6 +683,7 @@ class MainWindow(QMainWindow):
         """画面を更新する。表示中のタブだけ描き直す。"""
         self._tick += 1
         self._check_source()
+        self._check_correction()
         self._drain_log()
         self._update_info()
         self._update_pending()
@@ -574,6 +692,10 @@ class MainWindow(QMainWindow):
             self.monitor_panel.refresh(self.pipeline.state, self._tick % SLOW_TICKS == 0)
         elif current is self.settings_panel:
             self._update_settings()
+        elif current is self.spectrum_panel:
+            self._update_spectrum()
+        elif current is self.correction_panel:
+            self._update_correction()
         elif self._tick % MAIN_TICKS == 0:
             snap = self.pipeline.state.snapshot()
             if current is self.map_panel:
@@ -585,6 +707,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):  # pylint: disable=invalid-name
         """閉じるときにスレッドと記録を止める。"""
+        if self.correction is not None:
+            self.correction.stop()
+        self.correction_panel.save()
         self._stop_source()
         event.accept()
 
@@ -592,6 +717,8 @@ class MainWindow(QMainWindow):
 def main():
     """アプリケーションを起動する。"""
     app = QApplication(sys.argv)
+    app.setOrganizationName("kijitora-no-hito")
+    app.setApplicationName("ublox_monitor")
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

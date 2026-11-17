@@ -1,8 +1,9 @@
-# u-blox-Monitor **Version:** 0.2.0
+# u-blox-Monitor **Version:** 0.3.0
 **Author:** Rei Furukawa (kijitora-no-hito)
 
 u-blox 受信機(M8 / F9 / X20 シリーズ)用の記録・表示・設定・解析ツールです。Python で実装しています。
-測位状態や衛星の受信状況、地図上の軌跡を表示し、受信機の設定を変更できます。
+測位状態や衛星の受信状況、地図上の軌跡、RF のスペクトルを表示し、受信機の設定を変更できます。
+NTRIP などで受けた RTCM 補正情報を受信機へ送り、RTK 測位ができます。
 RAW データ(MEASX、SFRBX、RAWX など)を記録して、受信機の性能をグラフで解析できます。
 
 ![メイン画面](docs/images/main.png)
@@ -23,15 +24,35 @@ RAW データ(MEASX、SFRBX、RAWX など)を記録して、受信機の性能�
 
 ## 使い方
 
-### 1. 必要なもの
+### 1. インストール
+
+#### インストーラ版
+
+1. [Releases](https://github.com/kijitora-no-hito/u-blox-Monitor/releases) から `ublox_monitor_Setup_<バージョン>.exe` をダウンロードして実行する。管理者権限は要りません。
+2. スタートメニューに「u-blox Monitor」が追加されます(デスクトップのアイコンはインストール時に選べます)。
+
+記録の既定の保存先は「ドキュメント\ublox_monitor」です。アンインストールは Windows の「インストールされているアプリ」から行えます。
+
+#### ソースから実行する場合
 
 - Windows 11
 - Python 3.11 以降
 
-必要なパッケージ(PySide6、pyserial)をインストールします。
+必要なパッケージ(PySide6、pyserial)をインストールして起動します。
 
 ```
 pip install -r requirements.txt
+python ubxMonitor.py
+```
+
+`python -m ublox_monitor` でも起動できます。記録の既定の保存先は、起動したフォルダの `logs` です。
+
+#### インストーラを作る場合
+
+[PyInstaller](https://pyinstaller.org/)(`pip install pyinstaller`)と [Inno Setup 6](https://jrsoftware.org/isinfo.php) を入れてから、リポジトリのルートで次を実行します。`packaging\Output\` にインストーラができます。
+
+```
+powershell -ExecutionPolicy Bypass -File packaging\build.ps1
 ```
 
 ---
@@ -45,11 +66,7 @@ pip install -r requirements.txt
 
 ### 3. 起動
 
-```
-python ubxMonitor.py
-```
-
-`python -m ublox_monitor` でも起動できます。
+スタートメニューの「u-blox Monitor」から起動します(ソースからの場合は `python ubxMonitor.py`)。
 
 ---
 
@@ -71,6 +88,8 @@ python ubxMonitor.py
 |---|---|
 | **メイン** | 受信機の一般的な表示。測位状態(No Fix / 3D / DGNSS / RTK Float / RTK Fixed)、時刻、位置、精度、PDOP、速度、スカイプロット、衛星ごとの C/N0、信号別の追尾数、測位履歴のグラフ、全衛星の表、ログ |
 | **地図** | 現在位置と軌跡を OpenStreetMap 上に表示 |
+| **RTK 補正** | NTRIP キャスター / TCP サーバ / シリアルポートから RTCM 補正情報を受信し、受信機へ転送 |
+| **スペクトル** | 受信機の RF スペクトル(UBX-MON-SPAN)を表示 |
 | **受信機設定** | 受信機の設定の読み出しと変更 |
 | **u-blox モニター** | 従来の u-blox Monitor の表示(RAWX / MEASX の信号、SFRBX モニター、5 分間のトレンド) |
 
@@ -92,6 +111,32 @@ python ubxMonitor.py
 
 ![地図](docs/images/map.png)
 
+#### RTK 補正
+
+RTCM3 の補正情報を受信して、接続中の受信機へ転送します。受信機が RTK Float / RTK Fixed になるには、受信機が RTCM3 を受け付ける設定になっている必要があります。
+
+1. 受信元を選ぶ。
+   - **NTRIP キャスター**: ホスト、ポート(既定 2101)、マウントポイント、ユーザー名、パスワードを入れる。**一覧を取得** でキャスターのマウントポイントの一覧(ソーステーブル)を取得できます。NTRIP 1.0 / 2.0 と TLS に対応しています。
+   - **TCP サーバ**: RTCM3 をそのまま流しているサーバのホストとポートを入れる。
+   - **シリアルポート(無線機など)**: 基準局からの無線機などがつながっている COM ポートとボーレートを選ぶ。
+2. VRS など、利用者の位置が必要なマウントポイントでは **現在位置(GGA)をキャスターへ送る** にチェックを入れる。受信機の NAV-PVT の位置を指定の間隔で送ります(位置情報がキャスターに伝わります)。
+3. **補正情報の受信を開始** を押す。**受信機へ転送する** にチェックが入っていると、受信したデータをそのまま受信機へ送ります。
+4. 受信機が RTCM3 を受け付けていない場合は、**受信機の RTCM3 入力を有効にする** を押す。接続中のポート(「受信機側」で選んだもの)で RTCM3 の入力を有効にします(RAM のみ。F9 / X20 のみ)。受信機設定タブの「入力プロトコル」でも確認・変更できます。
+
+受信状況として、受信量、受信レート、CRC エラー、受信した RTCM3 メッセージの番号と受信数を表示します。基準局の位置(1005 / 1006)が届くと、基準局の座標と現在位置までの基線長も表示します。受信機側の補正経過時間は NAV-PVT の値です(対応するファームウェアのみ)。
+
+入力内容は次回の起動時に復元します。パスワードは保存しません。
+
+![RTK 補正](docs/images/rtk.png)
+
+#### スペクトル
+
+受信機の RF ブロックごとのスペクトルを表示します。表示中は 1 秒ごとに UBX-MON-SPAN を受信機に要求します(Poll なので受信機の設定は変えません)。現在値、最大値ホールド、平均を重ねて表示でき、主な信号の中心周波数に目印を付けます。グラフ上にマウスを置くと、その周波数とレベルを表示します。
+
+MON-SPAN に対応するのは F9 世代の比較的新しいファームウェアなどで、古いファームウェアや M8 では表示できません(応答が無い場合はその旨を表示します)。記録済みのログに MON-SPAN が含まれていれば、再生時にも表示します。
+
+![スペクトル](docs/images/spectrum.png)
+
 #### 受信機設定
 
 接続すると現在値を自動で読み出します。**現在値を読み込む** で読み直せます。
@@ -100,6 +145,7 @@ python ubxMonitor.py
 - 測位と追尾: ダイナミクスモデル、測位モード、RTK モード、仰角マスク、最小 C/N0、最小衛星数、測定周期、測位の間引き
 - 衛星系 / 信号: 衛星系と信号の有効 / 無効を切り替えます。信号は受信機が対応するものだけ表示します。変更すると衛星の追尾がいったん止まり、再捕捉が始まります。
 - 保存先: 「RAM のみ」(電源を切ると戻る。既定)または「RAM + BBR + Flash」(保存する)
+- 入力プロトコル: USB / UART1 / UART2 のそれぞれで RTCM3 補正情報を受け付けるかを切り替えます。
 - 世代: 通常は「自動判別」のままにしてください。MON-VER の応答が無い場合は手動で選びます。
 
 F9 / X20 は設定キー(UBX-CFG-VALGET / VALSET)で読み書きします。
@@ -133,6 +179,10 @@ M8 は UBX-CFG-NAV5 / CFG-RATE で読み書きします。M8 では衛星系と�
 | `ublox_monitor/settings.py` | 受信機設定の項目、設定パケット、設定画面 |
 | `ublox_monitor/charts.py` | グラフ、スカイプロット、C/N0 の棒グラフ |
 | `ublox_monitor/map_view.py` | 地図 |
+| `ublox_monitor/rtcm.py` | RTCM 補正情報の受信(NTRIP / TCP / シリアル)と RTCM3 の解析 |
+| `ublox_monitor/correction_view.py` | RTK 補正 |
+| `ublox_monitor/spectrum_view.py` | スペクトル |
+| `packaging/` | exe とインストーラの作成(PyInstaller、Inno Setup) |
 | `ublox_monitor/monitor_view.py` | u-blox モニター |
 | `ublox_monitor/app.py` | メインウィンドウ |
 
