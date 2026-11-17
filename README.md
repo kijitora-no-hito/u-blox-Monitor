@@ -1,136 +1,145 @@
-# u-blox-Monitor **Version:** 0.2.0 
-**Author:** Rei Furukawa (kijitora-no-hito) 
+# u-blox-Monitor **Version:** 0.2.0
+**Author:** Rei Furukawa (kijitora-no-hito)
 
-This software is a logging, visualization, configuration, and analysis tool for u-blox receivers (M8, F9, and X20 series), implemented in Python. It shows the positioning status, satellites, and the track on a map, lets you change the receiver configuration, and records RAW data (e.g., MEASX, SFRBX, RAWX) so that receiver performance can be analyzed through graphical visualization.
+u-blox 受信機(M8 / F9 / X20 シリーズ)用の記録・表示・設定・解析ツールです。Python で実装しています。
+測位状態や衛星の受信状況、地図上の軌跡を表示し、受信機の設定を変更できます。
+RAW データ(MEASX、SFRBX、RAWX など)を記録して、受信機の性能をグラフで解析できます。
 
-**License:**
-This software is released under the [MIT License](LICENSE).
+![メイン画面](docs/images/main.png)
 
-**Contribution Policy**
-This is a personal project and is not open for contributions.
-Issues are disabled.
+**ライセンス**
+[MIT ライセンス](LICENSE)で公開しています。
 
-- Pull requests will be closed without review.
-- No support or feature requests will be provided.
+**コントリビューションについて**
+個人のプロジェクトのため、コントリビューションは受け付けていません。Issue は無効にしています。
 
-Feel free to use the code as you like, but please do not expect any response or maintenance.
+- プルリクエストはレビューせずにクローズします。
+- サポートや機能の要望には対応しません。
 
-**Exception**
-I may occasionally respond to requests from personal contacts (e.g., discussion through at academic conferences in Japan related to navigation), but this is strictly on a private and case-by-case basis.
+コードはご自由にお使いください。ただし、返信や保守は期待しないでください。
 
-## How to Use
+**例外**
+個人的なつながりのある方(日本の測位航法関係の学会で議論した方など)からの依頼には、個別に対応することがあります。
 
-### 1. Requirements
+## 使い方
+
+### 1. 必要なもの
+
 - Windows 11
-- Python 3.11 or later
+- Python 3.11 以降
 
-Install the required packages:
+必要なパッケージ(PySide6、pyserial)をインストールします。
 
 ```
 pip install -r requirements.txt
 ```
 
-(PySide6 and pyserial)
+---
+
+### 2. 準備
+
+- u-blox の USB ドライバを PC にインストールする
+- u-blox 受信機を USB で PC につなぐ
 
 ---
 
-### 2. Setup
-
-- Install the appropriate u-blox USB driver on your Windows PC
-- Connect your u-blox receiver via USB
-
----
-
-### 3. Run
-
-Start the application:
+### 3. 起動
 
 ```
 python ubxMonitor.py
 ```
 
-(`python -m ublox_monitor` also works.)
+`python -m ublox_monitor` でも起動できます。
 
 ---
 
-### 4. Usage
+### 4. 操作
 
-1. Select the serial port and baud rate, then click **接続** (Connect).
-   - The receiver generation (M8 / F9 / X20) is detected from UBX-MON-VER.
-   - With **接続時に設定** checked (default), the output of NAV-PVT, NAV-SAT, RXM-RAWX,
-     RXM-SFRBX and RXM-MEASX is enabled on the connected port. Only RAM is changed, so the
-     receiver returns to its saved configuration after a power cycle.
-     Uncheck it if you do not want the receiver to be touched on connect;
-     **出力メッセージを設定** sends the same configuration manually.
-   - **受信機側** is the receiver port the PC is connected to (USB / UART1 / UART2).
-     "自動" assumes USB for a native u-blox USB port and UART1 for a USB-serial adapter.
-2. Click **記録開始** to record the received bytes to `logs/ublox_YYYYMMDD_HHMMSS.ubx`
-   (the folder can be changed with **参照**). Existing files are never overwritten.
-3. **UBX再生** replays a recorded `.ubx` file at 1x / 10x / 60x / maximum speed.
+1. ポートとボーレートを選び、**接続** を押す。
+   - 受信機の世代(M8 / F9 / X20)は UBX-MON-VER の応答から判別します。
+   - **接続時に設定** にチェックが入っていると(既定)、接続中のポートに NAV-PVT、NAV-SAT、RXM-RAWX、RXM-SFRBX、RXM-MEASX を出力するよう設定します。変更するのは RAM だけなので、電源を入れ直すと保存済みの設定に戻ります。
+   - 接続時に受信機の設定を変えたくない場合は、チェックを外してください。**出力メッセージを設定** を押すと、同じ設定を手動で送れます。
+   - **受信機側** は、PC がつながっている受信機側のポート(USB / UART1 / UART2)です。「自動」の場合、u-blox の USB ポートなら USB、USB シリアル変換なら UART1 とみなします。
+2. **記録開始** を押すと、受信したデータを `logs/ublox_年月日_時分秒.ubx` にそのまま保存します。保存先は **参照** で変えられます。既存のファイルは上書きしません。
+3. **UBX再生** を押すと、記録済みの `.ubx` ファイルを 1 倍速 / 10 倍速 / 60 倍速 / 最大の速度で再生します。実機が無くても画面を確認できます。
 
-### 5. Tabs
+### 5. 画面
 
-| Tab | Contents |
+画像は、テスト用に作ったサンプルデータを再生したときのものです。
+
+| タブ | 内容 |
 |---|---|
-| **メイン** | General receiver view: fix status (No Fix / 3D / DGNSS / RTK Float / RTK Fixed), time, position, accuracy, DOP, speed; sky plot; C/N0 bar chart; tracked signals; history charts (fix status, position offset from the mean, accuracy, number of satellites); all-satellite table; log |
-| **地図** | Current position and track on OpenStreetMap |
-| **受信機設定** | Read and change the receiver configuration |
-| **u-blox モニター** | The original u-blox Monitor views: signal status from RAWX / MEASX, SFRBX monitor, 5-minute trend |
+| **メイン** | 受信機の一般的な表示。測位状態(No Fix / 3D / DGNSS / RTK Float / RTK Fixed)、時刻、位置、精度、PDOP、速度、スカイプロット、衛星ごとの C/N0、信号別の追尾数、測位履歴のグラフ、全衛星の表、ログ |
+| **地図** | 現在位置と軌跡を OpenStreetMap 上に表示 |
+| **受信機設定** | 受信機の設定の読み出しと変更 |
+| **u-blox モニター** | 従来の u-blox Monitor の表示(RAWX / MEASX の信号、SFRBX モニター、5 分間のトレンド) |
 
-#### Map (地図)
+#### メイン
 
-The map is not loaded until you press **地図を表示**. When it is shown, Leaflet (unpkg.com) and
-map tiles (tile.openstreetmap.org) are downloaded from the internet, so the approximate
-location you are viewing is disclosed to the map server. **地図を閉じる** stops the connection.
+- 測位: 測位状態を色付きで大きく表示し、時刻(UTC)、緯度経度、楕円体高、標高、使用衛星数、推定精度、PDOP、速度、進行方位、受信メッセージ数を表示します。
+- スカイプロット: 衛星の配置を表示します。測位に使っている衛星は塗りつぶしで表示します。
+- 衛星ごとの C/N0: 測位に使っている衛星は濃く、それ以外は薄く表示します。
+- 測位履歴: 測位状態、位置の変化(平均位置からの差)、推定精度、使用衛星数の時系列を表示します。表示幅は右上で 1 分 / 5 分 / 15 分 / 1 時間 / 全期間から選べます。
+- 全衛星: 衛星ごとの方位、仰角、測位への使用、帯域(L1 / L2 / L5 / L6)ごとの C/N0 を表示します。
 
-#### Receiver settings (受信機設定)
+![メイン画面の全衛星の表](docs/images/main_satellites.png)
 
-The current values are read automatically after connecting (**現在値を読み込む** reads them again).
-Change the items you want and press **変更を送信**; only the changed items are sent, after a
-confirmation dialog, and the values are read back. The result (ACK / NAK) is shown in the tab.
+#### 地図
 
-- 測位と追尾: dynamic model, fix mode, RTK mode, elevation mask, minimum C/N0,
-  minimum number of satellites, measurement period, navigation rate
-- 衛星系 / 信号: enable or disable constellations and signals. Only the signals supported by
-  the receiver are shown. Changing them restarts the GNSS subsystem (re-acquisition).
-- 保存先: "RAM のみ" (lost at power-off, default) or "RAM + BBR + Flash" (saved)
-- 世代: normally "自動判別"; select manually if MON-VER is not answered
+**地図を表示** を押すまで地図は読み込みません。表示すると Leaflet(unpkg.com)と地図タイル(tile.openstreetmap.org)をインターネットから取得するため、表示している場所の概略が地図サーバに伝わります。**地図を閉じる** を押すと接続を止めます。
 
-F9 / X20 use the configuration interface (UBX-CFG-VALGET / VALSET).
-M8 uses UBX-CFG-NAV5 / CFG-RATE; constellations and signals cannot be changed on M8, and
-changes are applied to the current configuration only.
+**現在位置に追従** にチェックを入れると、現在位置が画面の外に出たときに地図を移動します。現在位置の印は測位状態の色で表示します。
 
-#### u-blox Monitor (u-blox モニター)
+![地図](docs/images/map.png)
 
-**信号(RAWX / MEASX)** shows the signal reception status from RAWX and MEASX.
-<img width="1684" height="492" alt="image" src="https://github.com/user-attachments/assets/ec67d8be-2819-4a2c-8d26-3dac30c72d1d" />
+#### 受信機設定
 
-**SFRBX モニター** shows the reception status of navigation data.
-<img width="1757" height="555" alt="image" src="https://github.com/user-attachments/assets/e2bdf38b-ffdd-4f4e-992d-975ebb54b54d" />
+接続すると現在値を自動で読み出します。**現在値を読み込む** で読み直せます。
+変更したい項目を選んで **変更を送信** を押すと、確認画面のあとで変更した項目だけを送り、値を読み直します。受信機が受け付けたか(ACK / NAK)はタブ内に表示します。
 
-**トレンド(5 分)** shows the 5-minute trend of RXM-MEASX / RAWX.
-<img width="1282" height="559" alt="image" src="https://github.com/user-attachments/assets/2f913845-e0ca-4060-b2a4-051fcc84b7d8" />
+- 測位と追尾: ダイナミクスモデル、測位モード、RTK モード、仰角マスク、最小 C/N0、最小衛星数、測定周期、測位の間引き
+- 衛星系 / 信号: 衛星系と信号の有効 / 無効を切り替えます。信号は受信機が対応するものだけ表示します。変更すると衛星の追尾がいったん止まり、再捕捉が始まります。
+- 保存先: 「RAM のみ」(電源を切ると戻る。既定)または「RAM + BBR + Flash」(保存する)
+- 世代: 通常は「自動判別」のままにしてください。MON-VER の応答が無い場合は手動で選びます。
+
+F9 / X20 は設定キー(UBX-CFG-VALGET / VALSET)で読み書きします。
+M8 は UBX-CFG-NAV5 / CFG-RATE で読み書きします。M8 では衛星系と信号は変更できず、変更は現在の設定(RAM)にだけ反映します。
+
+![受信機設定](docs/images/settings.png)
+
+#### u-blox モニター
+
+**信号(RAWX / MEASX)** は、RAWX と MEASX から得た信号の受信状況を表示します。棒の高さが C/N0、色がマルチパスの指標、上の小さな枠が帯域(L1 / L2 / L5 / L6)ごとの追尾状態です。棒の下には MEASX の値(wChips、fChips、cPhase、iPhase、RMSE)を表示します。
+
+![信号(RAWX / MEASX)](docs/images/monitor_signal.png)
+
+**SFRBX モニター** は、航法メッセージの受信状況を表示します。GPS / QZSS の L1C/A は、受信したサブフレームの番号も表示します。
+
+![SFRBX モニター](docs/images/monitor_sfrbx.png)
+
+**トレンド(5 分)** は、直近 5 分間の C/N0、マルチパス、RMSE、追尾状態を衛星系と帯域ごとに表示します。右上のプルダウンで衛星を絞り込めます。
+
+![トレンド(5 分)](docs/images/monitor_trend.png)
 
 ---
 
-### Structure
+### 構成
 
-| File | Role |
+| ファイル | 役割 |
 |---|---|
-| `ublox_monitor/ubx.py` | UBX framing (checksum), decoding, packet building |
-| `ublox_monitor/state.py` | Aggregation of received messages |
-| `ublox_monitor/serial_link.py` | Serial I/O, replay, recording |
-| `ublox_monitor/settings.py` | Receiver settings: items, packets, settings tab |
-| `ublox_monitor/charts.py` | Charts, sky plot, C/N0 bars |
-| `ublox_monitor/map_view.py` | Map tab |
-| `ublox_monitor/monitor_view.py` | u-blox Monitor tab |
-| `ublox_monitor/app.py` | Main window |
+| `ublox_monitor/ubx.py` | UBX の分離(チェックサム検査)、デコード、パケットの組み立て |
+| `ublox_monitor/state.py` | 受信メッセージの集計 |
+| `ublox_monitor/serial_link.py` | シリアル通信、再生、記録 |
+| `ublox_monitor/settings.py` | 受信機設定の項目、設定パケット、設定画面 |
+| `ublox_monitor/charts.py` | グラフ、スカイプロット、C/N0 の棒グラフ |
+| `ublox_monitor/map_view.py` | 地図 |
+| `ublox_monitor/monitor_view.py` | u-blox モニター |
+| `ublox_monitor/app.py` | メインウィンドウ |
 
-Tests: `python -m pytest tests`
+テストは `python -m pytest tests` で実行します。
 
 ---
 
-### Notes
+### 補足
 
-This software is released under the [MIT License](LICENSE).
-Feel free to use, modify, and redistribute it, including for commercial purposes.
+MIT ライセンスで公開しています。ご自由にお使いください。
