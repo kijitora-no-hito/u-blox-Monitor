@@ -132,8 +132,5 @@ Tests: `python -m pytest tests`
 
 ### Notes
 
-This software is still under development.  
-You may encounter bugs or incomplete features.
-
-Feel free to explore and use it as you like.  
-Use at your own risk :)
+This software is released under the [MIT License](LICENSE).
+Feel free to use, modify, and redistribute it, including for commercial purposes.
