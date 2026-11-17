@@ -118,6 +118,37 @@ def test_nav5_sets_only_the_masks_of_changed_fields():
                                        "minsvs": 0, "mincno": 20}
 
 
+def test_mon_span_blocks_and_frequencies():
+    (msg, payload), = ubx.UbxStream().feed(samples.mon_span())
+    assert msg == ubx.MON_SPAN
+    blocks = ubx.parse_mon_span(payload)
+    assert len(blocks) == 2
+    block = blocks[0]
+    assert (block["span"], block["res"], block["center"], block["pga"]) == (
+        128_000_000, 500_000, 1_583_400_000, 54)
+    assert len(block["spectrum"]) == 256
+    assert block["spectrum"][0] == payload[4] * 0.25
+    freqs = ubx.span_frequencies(block)
+    assert freqs[128] == pytest.approx(1583.4)
+    assert freqs[0] == pytest.approx(1583.4 - 64)
+    assert freqs[1] - freqs[0] == pytest.approx(0.5)
+    # 山は L1 帯の信号の中心周波数のどれかにある
+    peak = max(range(256), key=lambda i: block["spectrum"][i])
+    assert min(abs(freqs[peak] - f) for f in (1575.42, 1561.098, 1602.0)) < 2
+
+
+def test_spectrum_trace_holds_max_and_mean():
+    from ublox_monitor.spectrum_view import SpectrumTrace
+    base = {"center": 1, "span": 2, "res": 1, "pga": 0}
+    trace = SpectrumTrace()
+    trace.add({**base, "spectrum": [1.0, 4.0]})
+    trace.add({**base, "spectrum": [3.0, 2.0]})
+    assert trace.current == [3.0, 2.0] and trace.maximum == [3.0, 4.0]
+    assert trace.mean == [2.0, 3.0] and trace.count == 2
+    trace.add({**base, "center": 5, "spectrum": [0.0, 0.0]})   # 周波数が変われば集計し直す
+    assert trace.maximum == [0.0, 0.0] and trace.count == 1
+
+
 # ---- settings ----
 
 def test_current_values_from_keys_and_changed_only():
@@ -227,8 +258,14 @@ def test_thin_keeps_last_point():
 
 @pytest.fixture(scope="module")
 def qt_app():
+    from PySide6.QtCore import QSettings
     from PySide6.QtWidgets import QApplication
-    return QApplication.instance() or QApplication([])
+    app = QApplication.instance() or QApplication([])
+    # 利用者の設定に書き込まないよう、テスト用の名前にする
+    app.setOrganizationName("ublox_monitor_test")
+    app.setApplicationName("ublox_monitor_test")
+    yield app
+    QSettings().clear()
 
 
 def test_main_window_shows_a_replayed_log(qt_app, tmp_path):
@@ -251,6 +288,47 @@ def test_main_window_shows_a_replayed_log(qt_app, tmp_path):
     assert window.status["lat"].text().startswith("35.68")
     assert window.signal_table.rowCount() > 0
     assert "F9" in window.console.toPlainText()
+    assert window.pipeline.spectrum_count == 20
+    assert len(window.spectrum_panel.plot.traces) == 2
+    window.close()
+
+
+class FakeSerial(link.SerialSource):
+    """送信内容を覚えるだけの、接続中に見えるデータ源。"""
+
+    def __init__(self):
+        super().__init__(link.Pipeline(), "COM99", 115200)
+        self.sent = []
+
+    def is_alive(self):
+        return True
+
+    def send(self, packets):
+        self.sent += packets
+
+    def stop(self):
+        pass
+
+
+def test_corrections_are_forwarded_and_rtcm_input_enabled(qt_app):
+    from ublox_monitor.app import MainWindow
+    window = MainWindow()
+    window.timer.stop()
+    fake = FakeSerial()
+    window.source = fake
+    window.receiver_port_box.setCurrentIndex(window.receiver_port_box.findData("UART2"))
+    window._forward_correction(b"\xd3\x00\x01")
+    assert fake.sent == [b"\xd3\x00\x01"]
+    window.correction_panel.forward_check.setChecked(False)
+    window._update_correction()
+    window._forward_correction(b"\xd3")
+    assert fake.sent == [b"\xd3\x00\x01"]
+    window.pipeline.version = {"gen": "F9"}
+    window.enable_rtcm_input()
+    (msg, payload), = ubx.UbxStream().feed(fake.sent[-1])
+    assert msg == ubx.CFG_VALSET
+    assert ubx.parse_valget(payload) == {0x10750004: b"\x01"}     # UART2 の RTCM3 入力
+    window.source = None
     window.close()
 
 

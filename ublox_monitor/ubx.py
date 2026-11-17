@@ -19,8 +19,10 @@ CFG_NAV5 = (0x06, 0x24)
 CFG_VALSET = (0x06, 0x8A)
 CFG_VALGET = (0x06, 0x8B)
 MON_VER = (0x0A, 0x04)
+MON_SPAN = (0x0A, 0x31)
 
 MESSAGE_NAMES = {
+    MON_SPAN: "MON-SPAN",
     NAV_PVT: "NAV-PVT", NAV_SAT: "NAV-SAT", RXM_SFRBX: "RXM-SFRBX", RXM_MEASX: "RXM-MEASX",
     RXM_RAWX: "RXM-RAWX", ACK_NAK: "ACK-NAK", ACK_ACK: "ACK-ACK", CFG_MSG: "CFG-MSG",
     CFG_RATE: "CFG-RATE", CFG_NAV5: "CFG-NAV5", CFG_VALSET: "CFG-VALSET",
@@ -64,6 +66,10 @@ SIGNAL_BANDS = {
 FIX_LABELS = ("No Fix", "DR", "Time", "2D", "3D", "GNSS+DR", "DGNSS", "RTK Float",
               "RTK Fixed")
 _FIX_TYPE_RANKS = {0: 0, 1: 1, 2: 3, 3: 4, 4: 5, 5: 2}
+# NAV-PVT flags3 の lastCorrectionAge(bit 1-4)
+CORRECTION_AGES = {1: "1 秒未満", 2: "1〜2 秒", 3: "2〜5 秒", 4: "5〜10 秒", 5: "10〜15 秒",
+                   6: "15〜20 秒", 7: "20〜30 秒", 8: "30〜45 秒", 9: "45〜60 秒",
+                   10: "60〜90 秒", 11: "90〜120 秒", 12: "120 秒以上"}
 
 
 def sat_name(gnss_id, sv_id):
@@ -158,6 +164,13 @@ class Pvt:  # pylint: disable=too-many-instance-attributes
     heading: float | None
     pdop: float
     tacc: int
+    diff_soln: bool = False
+    correction_age: int = 0     # flags3 の lastCorrectionAge(0 は情報なし)
+
+    @property
+    def correction_age_text(self):
+        """補正情報の経過時間の表示文字列。"""
+        return CORRECTION_AGES.get(self.correction_age, "—")
 
     @property
     def fix_label(self):
@@ -186,7 +199,9 @@ def parse_nav_pvt(payload):
     else:
         rank = _FIX_TYPE_RANKS.get(fix_type, 0)
     has_pos = fix_ok and fix_type in (1, 2, 3, 4)
+    flags3 = struct.unpack_from("<H", payload, 78)[0]
     return Pvt(
+        diff_soln=bool(flags & 0x02), correction_age=(flags3 >> 1) & 0x0F,
         itow=itow,
         utc=f"{year:04d}/{month:02d}/{day:02d} {hour:02d}:{minute:02d}:{second:02d}",
         time_valid=(valid & 0x03) == 0x03,
@@ -289,6 +304,35 @@ def parse_mon_ver(payload):
         gen = "Unknown"
     return {"gen": gen, "sw": software, "hw": hardware, "module": module,
             "protver": fields.get("PROTVER", "").strip(), "extensions": extensions}
+
+
+SPAN_BINS = 256
+SPAN_BLOCK_SIZE = 272
+SPAN_DB_SCALE = 0.25    # spectrum の 1 単位 [dB]
+
+
+def parse_mon_span(payload):
+    """MON-SPAN(スペクトラムアナライザ)を RF ブロックごとの dict のリストにする。
+
+    周波数 [Hz] は center + span * (i - 128) / 256。レベルは 0.25 dB 単位。
+    """
+    if len(payload) < 4:
+        return []
+    count = min(payload[1], (len(payload) - 4) // SPAN_BLOCK_SIZE)
+    blocks = []
+    for index in range(count):
+        off = 4 + index * SPAN_BLOCK_SIZE
+        span, res, center, pga = struct.unpack_from("<IIIB", payload, off + SPAN_BINS)
+        blocks.append({
+            "spectrum": [v * SPAN_DB_SCALE for v in payload[off:off + SPAN_BINS]],
+            "span": span, "res": res, "center": center, "pga": pga})
+    return blocks
+
+
+def span_frequencies(block):
+    """MON-SPAN の 1 ブロックの各点の周波数 [MHz] を返す。"""
+    return [(block["center"] + block["span"] * (i - SPAN_BINS // 2) / SPAN_BINS) / 1e6
+            for i in range(SPAN_BINS)]
 
 
 # ---- 設定(F9 / X20: CFG-VALGET / VALSET) ----

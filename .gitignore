@@ -4,4 +4,7 @@ __pycache__/
 .venv/
 .vscode/
 logs/
+packaging/build/
+packaging/dist/
+packaging/Output/
 *.ubx
