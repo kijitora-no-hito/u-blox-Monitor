@@ -8,11 +8,19 @@
     <string name="nav_compare">比較</string>
     <string name="nav_map">地図</string>
     <string name="nav_logs">記録</string>
+    <string name="nav_more">その他</string>
+    <string name="nav_settings">受信機設定</string>
+    <string name="nav_correction">RTK 補正</string>
+    <string name="back">戻る</string>
+    <string name="more_settings_help">測位・追尾・衛星系・信号・RTCM3 入力の読み出しと変更</string>
+    <string name="more_correction_help">NTRIP / TCP / USB シリアルの補正情報を受信機へ転送</string>
+    <string name="more_logs_help">記録した UBX ログの再生・共有・削除</string>
 
     <!-- データ源 -->
     <string name="source_ublox">u-blox</string>
     <string name="source_internal">内蔵 GNSS</string>
     <string name="source_replay">再生</string>
+    <string name="source_correction">RTK 補正</string>
 
     <!-- 接続 -->
     <string name="connect_title">受信機（USB）</string>
@@ -78,7 +86,7 @@
     <string name="open_dev_options">開発者オプションを開く</string>
 
     <!-- メイン -->
-    <string name="no_source">データがありません。［接続］で受信機をつなぐか、［記録］から UBX ログを再生してください。</string>
+    <string name="no_source">データがありません。［接続］で受信機をつなぐか、［その他］→［記録］から UBX ログを再生してください。</string>
     <string name="status_box">測位</string>
     <string name="row_utc">時刻（UTC）</string>
     <string name="row_lat">緯度</string>
@@ -112,7 +120,7 @@
     <string name="compare_base_help">内蔵 GNSS をこの基準（u-blox 受信機、または再生中のログ）と比べます。位置の差は基準から見た内蔵の位置です。</string>
     <string name="compare_only_base">内蔵 GNSS が動いていません。［接続］で内蔵 GNSS を開始してください。</string>
     <string name="compare_only_internal">%1$s のデータがありません（内蔵 GNSS だけ動いています）。</string>
-    <string name="compare_none">比較するデータがありません。［接続］で u-blox 受信機と内蔵 GNSS を開始するか、［記録］から再生してください。</string>
+    <string name="compare_none">比較するデータがありません。［接続］で u-blox 受信機と内蔵 GNSS を開始するか、［その他］→［記録］から再生してください。</string>
     <string name="compare_stale">%1$s の位置が古いため、位置の差は出していません。</string>
     <string name="compare_table_title">測位の比較</string>
     <string name="compare_item">項目</string>
@@ -164,6 +172,82 @@
     <string name="delete_confirm">%1$s を削除しますか？</string>
     <string name="cancel">キャンセル</string>
 
+    <!-- 受信機設定 -->
+    <string name="settings_title">受信機設定</string>
+    <string name="settings_not_connected">受信機につないでいません。［接続］で u-blox 受信機をつなぐと現在値を読み出します（再生中のログは設定できません）。</string>
+    <string name="settings_read">現在値を読み込む</string>
+    <string name="settings_send">変更を送信</string>
+    <string name="settings_gen">世代</string>
+    <string name="settings_layers">保存先</string>
+    <string name="settings_gen_info">設定に使う世代: %1$s（MON-VER の判別: %2$s）</string>
+    <string name="settings_gen_help">世代は通常「自動判別」のまま。MON-VER の応答が無い場合は手動で選びます。</string>
+    <string name="settings_nav">測位と追尾</string>
+    <string name="settings_current">現在値: %1$s</string>
+    <string name="settings_unsupported">—（非対応）</string>
+    <string name="settings_range">%1$d〜%2$d の範囲で入力してください</string>
+    <string name="settings_systems">衛星系</string>
+    <string name="settings_signals">信号（受信機が対応するものだけ表示）</string>
+    <string name="settings_inputs">入力プロトコル（RTCM3 補正情報を受け付けるポート）</string>
+    <string name="settings_tracking_note">衛星系・信号を変更すると、衛星の追尾がいったん止まり、再捕捉が始まります。</string>
+    <string name="settings_m8_note">M8 世代は衛星系・信号・入力プロトコルを変更できません。変更は現在の設定（RAM）にだけ反映します。</string>
+    <string name="settings_confirm_title">設定の送信</string>
+    <string name="settings_confirm_send">送信</string>
+    <string name="settings_no_signals">—（読み出すと表示します）</string>
+
+    <!-- RTK 補正 -->
+    <string name="corr_source">受信元</string>
+    <string name="corr_kind">種類</string>
+    <string name="corr_kind_ntrip">NTRIP キャスター</string>
+    <string name="corr_kind_tcp">TCP サーバ</string>
+    <string name="corr_kind_serial">USB シリアル（無線機など）</string>
+    <string name="corr_host">ホスト</string>
+    <string name="corr_host_hint">例: ntrip.example.jp</string>
+    <string name="corr_port">ポート</string>
+    <string name="corr_tls">TLS（暗号化）</string>
+    <string name="corr_version">プロトコル</string>
+    <string name="corr_mount">マウントポイント</string>
+    <string name="corr_fetch">一覧を取得</string>
+    <string name="corr_user">ユーザー名</string>
+    <string name="corr_password">パスワード</string>
+    <string name="corr_password_hint_off">保存しません</string>
+    <string name="corr_password_hint_on">この端末の中で暗号化して保存します</string>
+    <string name="corr_save_password">パスワードを保存する</string>
+    <string name="corr_save_password_help">オンにしたときだけ、Android Keystore の鍵で暗号化してこの端末に保存します（バックアップ・機種変更には含めません）。オフにすると保存したパスワードを消します。</string>
+    <string name="corr_gga">現在位置（GGA）をキャスターへ送る</string>
+    <string name="corr_gga_interval">間隔 [秒]</string>
+    <string name="corr_gga_help">VRS など、利用者の位置が必要なマウントポイントで使います。u-blox の NAV-PVT の位置を送るので、位置情報がキャスターに伝わります。</string>
+    <string name="corr_serial_device">USB シリアル機器</string>
+    <string name="corr_serial_none">ほかの USB シリアル機器が見つかりません。</string>
+    <string name="corr_serial_help">u-blox をつないでいる機器とは別の USB シリアル機器（基準局の無線機など）。USB ハブで両方をつなぎます。</string>
+    <string name="corr_baud">ボーレート</string>
+    <string name="corr_start">補正情報の受信を開始</string>
+    <string name="corr_stop">補正情報の受信を停止</string>
+    <string name="corr_forward">受信機へ転送する</string>
+    <string name="corr_enable_input">受信機の RTCM3 入力を有効にする</string>
+    <string name="corr_enable_input_help">「受信機側」のポート（%1$s）で RTCM3 の入力を受け付けるよう設定します（RAM のみ。F9 / X20 のみ）。受信機設定の「入力プロトコル」でも確認・変更できます。</string>
+    <string name="corr_reconnect_help">切れたら［補正情報の受信を停止］を押すまで自動で再接続します（2→4→8…最大 60 秒）。認証の失敗・マウントポイントが無いときは再接続しません。</string>
+    <string name="corr_status">受信状況</string>
+    <string name="corr_row_state">状態</string>
+    <string name="corr_row_bytes">受信量</string>
+    <string name="corr_row_rate">受信レート</string>
+    <string name="corr_row_age">最後に受信してから</string>
+    <string name="corr_row_crc">CRC エラー</string>
+    <string name="corr_row_station">基準局</string>
+    <string name="corr_row_baseline">基線長</string>
+    <string name="corr_row_fix">受信機の測位状態</string>
+    <string name="corr_row_corr_age">受信機の補正経過時間</string>
+    <string name="corr_row_reconnects">再接続</string>
+    <string name="corr_messages">受信した RTCM3 メッセージ</string>
+    <string name="corr_col_number">番号</string>
+    <string name="corr_col_name">内容</string>
+    <string name="corr_col_count">受信数</string>
+    <string name="corr_col_age">最終受信 [秒前]</string>
+    <string name="corr_mounts_title">マウントポイント（%1$d 件）</string>
+    <string name="corr_mount_nmea">GGA の送信が必要</string>
+    <string name="corr_mount_sorted">現在位置から近い順</string>
+    <string name="corr_notice">［補正情報の受信を開始］・［一覧を取得］を押すと、入力したキャスター / サーバにインターネットで接続します。GGA を送る設定では現在位置も送ります。</string>
+    <string name="close">閉じる</string>
+
     <!-- 通知 -->
     <string name="notif_channel">受信機との接続</string>
     <string name="notif_waiting">測位を待っています</string>
@@ -171,4 +255,5 @@
     <string name="notif_recording">・記録中</string>
     <string name="notif_mock">擬似ロケーションを流しています</string>
     <string name="notif_disconnect">切断</string>
+    <string name="notif_correction">RTK 補正: %1$s</string>
 </resources>

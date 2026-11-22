@@ -30,6 +30,7 @@ import jp.kjtr.ubloxmonitor.domain.TimedDiff
 import jp.kjtr.ubloxmonitor.domain.LogStatus
 import jp.kjtr.ubloxmonitor.domain.MonVer
 import jp.kjtr.ubloxmonitor.domain.Pipeline
+import jp.kjtr.ubloxmonitor.domain.ReceiverConfig
 import jp.kjtr.ubloxmonitor.domain.ReplayClock
 import jp.kjtr.ubloxmonitor.domain.Snapshot
 import jp.kjtr.ubloxmonitor.domain.Ubx
@@ -45,6 +46,9 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 /** 画面に出す 1 データ源の状態。 */
@@ -75,6 +79,22 @@ class CompareView(
     val cn0: CommonCn0?,
 )
 
+/**
+ * 受信機設定タブの状態。gen は設定に使う世代（手動の選択 → MON-VER の判別 → Unknown）、
+ * values は受信機から読めた値（{項目 ID: 値}）、readDone は読み出しの応答がそろった（または時間切れ）か。
+ */
+class SettingsView(
+    val connected: Boolean,
+    val gen: String,
+    val detected: String?,
+    val genChoice: String?,
+    val layers: Int,
+    val values: Map<String, Int>,
+    val status: String,
+    val readDone: Boolean,
+    val awaitingAck: Boolean,
+)
+
 /** 擬似ロケーションの状態。 */
 enum class MockStatus { OFF, WAITING, ACTIVE, NOT_ALLOWED }
 
@@ -96,6 +116,8 @@ class MonitorRepository(private val app: Context) {
         var ended = false
         var endMessage: String? = null
         var pendingSetup = false
+        /** 接続後に受信機設定を読み出す（Python 版 _pending_read） */
+        var pendingRead = false
         var pendingTicks = 0
         /** 受信機側のポート（u-blox のみ） */
         var receiverPort: String = "USB"
@@ -148,6 +170,27 @@ class MonitorRepository(private val app: Context) {
 
     private var tick = 0
 
+    // ---- 受信機設定（Python 版 settings_panel と _update_settings） ----
+    private var settingsStatus = "接続すると現在値を読み出します。"
+    private var awaitingAck = false
+    private var acksSeen = 0
+    /** 読み出しを始めたときの acks の数と時刻（応答がそろったかを見る） */
+    private var readAcksStart = 0
+    private var readStartedAt = 0L
+    private val _settings = MutableStateFlow(
+        SettingsView(false, "Unknown", null, prefs.settingsGen, prefs.settingsLayers, emptyMap(), settingsStatus, false, false)
+    )
+    val settings: StateFlow<SettingsView> = _settings.asStateFlow()
+
+    /** RTK 補正（受信と受信機への転送） */
+    val correction = CorrectionManager(
+        app, prefs, scope,
+        forward = ::forwardCorrection,
+        roverPvt = { runtimes[Channel.UBLOX]?.takeIf { !it.ended }?.pipeline?.state?.pvt },
+        ubloxConnected = { isRunning(Channel.UBLOX) },
+        log = { addLog("${SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())}  [${app.getString(jp.kjtr.ubloxmonitor.R.string.source_correction)}] $it") },
+    )
+
     init {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
@@ -171,8 +214,10 @@ class MonitorRepository(private val app: Context) {
                 try {
                     checkSources()
                     updatePending()
+                    updateSettings()
                     if (tick % MAIN_TICKS == 0) updateDiffHistory()
                     if (tick % MAIN_TICKS == 0 && _views.subscriptionCount.value > 0) publishViews()
+                    if (tick % MAIN_TICKS == 0) correction.publish()
                 } catch (e: Exception) {
                     addLog("内部エラー: ${e.message}")
                 }
@@ -198,8 +243,11 @@ class MonitorRepository(private val app: Context) {
 
     // ---- データ源 ----
 
-    /** 動いている u-blox / 内蔵 GNSS があるか（サービスを保つ条件） */
+    /** 動いている u-blox / 内蔵 GNSS があるか */
     fun hasLiveSource(): Boolean = runtimes.values.any { it.channel.live && !it.ended && it.source.isAlive }
+
+    /** フォアグラウンドサービスを保つ条件（u-blox・内蔵 GNSS・補正の受信のどれかが動いている） */
+    fun keepsService(): Boolean = hasLiveSource() || correction.isRunning()
 
     fun isRunning(channel: Channel): Boolean = runtimes[channel]?.let { !it.ended && it.source.isAlive } == true
 
@@ -227,6 +275,7 @@ class MonitorRepository(private val app: Context) {
         runtime.source.stop()
         runtime.pipeline.stopLogging()
         runtime.pendingSetup = false
+        runtime.pendingRead = false
         if (!runtime.ended) {
             runtime.ended = true
             runtime.endMessage = message
@@ -281,7 +330,11 @@ class MonitorRepository(private val app: Context) {
                 // 世代によって設定の方法が違うので、MON-VER の応答を待ってから設定を送る
                 source.send(listOf(Ubx.build(Ubx.MON_VER)))
                 it.pendingSetup = autoSetup
+                it.pendingRead = true
                 it.pendingTicks = 0
+                readStartedAt = 0L
+                awaitingAck = false
+                settingsStatus = "接続すると現在値を読み出します。"
             }
             _usbMessage.value = ""
             if (prefs.mockLocation) startMock()
@@ -301,7 +354,17 @@ class MonitorRepository(private val app: Context) {
         disconnect()
         if (isRunning(Channel.INTERNAL)) stopChannel(Channel.INTERNAL, app.getString(jp.kjtr.ubloxmonitor.R.string.internal_stopped))
         if (isRunning(Channel.REPLAY)) stopChannel(Channel.REPLAY, app.getString(jp.kjtr.ubloxmonitor.R.string.replay_stopped))
+        correction.stop()
         publishViews()
+    }
+
+    /** u-blox の受信機側のポート（つないでいなければ null） */
+    fun receiverPort(): String? = runtimes[Channel.UBLOX]?.takeIf { !it.ended }?.receiverPort
+
+    /** RTK 補正のシリアルの候補（u-blox につないでいる機器は除く） */
+    fun correctionCandidates(all: List<UsbCandidate>): List<UsbCandidate> {
+        val ublox = runtimes[Channel.UBLOX]?.takeIf { !it.ended }?.deviceName
+        return all.filter { it.key != ublox }
     }
 
     // ---- 内蔵 GNSS ----
@@ -366,7 +429,16 @@ class MonitorRepository(private val app: Context) {
         return CompareView(base, b?.running == true, i?.running == true, bs, isum, diff, diffHistory.toList(), cn0)
     }
 
-    private fun generation(runtime: Runtime): String = runtime.pipeline.version?.gen ?: "Unknown"
+    /** 設定に使う受信機の世代。手動で選んでいればそれを、なければ判別結果を使う（Python 版 _generation）。 */
+    private fun generation(runtime: Runtime?): String = prefs.settingsGen ?: runtime?.pipeline?.version?.gen ?: "Unknown"
+
+    /** 送信できる u-blox（つながっていなければ null） */
+    private fun liveUblox(): Runtime? = runtimes[Channel.UBLOX]?.takeIf { !it.ended && it.source.isAlive && it.source.canSend }
+
+    /** 受信した補正情報を u-blox へ送る（補正の受信スレッドから呼ばれる）。書くのは u-blox の読み取りスレッド。 */
+    private fun forwardCorrection(data: ByteArray) {
+        liveUblox()?.source?.send(listOf(data))
+    }
 
     /** 表示に使うメッセージの出力を有効にする（Python 版 apply_setup）。 */
     fun applySetup() {
@@ -377,15 +449,145 @@ class MonitorRepository(private val app: Context) {
         runtime.source.send(Link.outputPackets(gen, runtime.receiverPort))
     }
 
-    /** 接続後、世代が分かったら（または 2 秒待っても分からなければ）設定を送る。 */
+    /** 接続後、世代が分かったら（または 2 秒待っても分からなければ）出力の設定と受信機設定の読み出しをする。 */
     private fun updatePending() {
         val runtime = runtimes[Channel.UBLOX] ?: return
-        if (!runtime.pendingSetup || runtime.ended || !runtime.source.isAlive) return
+        if (!(runtime.pendingSetup || runtime.pendingRead) || runtime.ended || !runtime.source.isAlive) return
         runtime.pendingTicks++
         if (runtime.pipeline.version == null && runtime.pendingTicks < 2000 / REFRESH_MS) return
+        if (runtime.pendingSetup) applySetup()
+        if (runtime.pendingRead) readSettings()
         runtime.pendingSetup = false
-        applySetup()
-        // 受信機設定の読み出し（Python 版 read_settings）は受信機設定タブと一緒に 2 段目で入れる
+        runtime.pendingRead = false
+    }
+
+    // ---- 受信機設定 ----
+
+    fun setSettingsGen(gen: String?) {
+        prefs.settingsGen = gen
+        publishSettings()
+    }
+
+    fun setSettingsLayers(layers: Int) {
+        prefs.settingsLayers = layers
+        publishSettings()
+    }
+
+    /** 受信機の現在の設定を読み出す（Python 版 read_settings）。 */
+    fun readSettings() {
+        val runtime = liveUblox() ?: return
+        val gen = generation(runtime)
+        runtime.pipeline.cfgValues.clear()
+        runtime.pipeline.nav5 = null
+        runtime.pipeline.rate = null
+        readAcksStart = runtime.pipeline.acks.size
+        readStartedAt = System.currentTimeMillis()
+        runtime.source.send(ReceiverConfig.readPackets(gen))
+        settingsStatus = "現在値を読み出しています。"
+        publishSettings()
+    }
+
+    /** changes を書き込むパケット（空なら送れる変更がない）。 */
+    fun settingsPackets(changes: Map<String, Int>, layers: Int): List<ByteArray> {
+        val runtime = liveUblox() ?: return emptyList()
+        return ReceiverConfig.writePackets(generation(runtime), changes, layers, runtime.pipeline.nav5, runtime.pipeline.rate)
+    }
+
+    /** 確認のあとで設定を送る（Python 版 send_settings の確認より後）。応答が来たら読み直す。 */
+    fun sendSettings(changes: Map<String, Int>, layers: Int) {
+        val runtime = liveUblox() ?: return
+        val packets = settingsPackets(changes, layers)
+        if (packets.isEmpty()) {
+            settingsStatus = "送信できる変更がありません。"
+            publishSettings()
+            return
+        }
+        runtime.pipeline.log("設定を送信: " + ReceiverConfig.changeLines(changes).joinToString("、"))
+        acksSeen = runtime.pipeline.acks.size
+        awaitingAck = true
+        settingsStatus = "送信しました。応答を待っています。"
+        runtime.source.send(packets)
+        publishSettings()
+    }
+
+    fun setSettingsStatus(text: String) {
+        settingsStatus = text
+        publishSettings()
+    }
+
+    /** 受信機設定の現在値と送信結果を見る（Python 版 _update_settings。0.25 秒ごと）。 */
+    private fun updateSettings() {
+        val runtime = liveUblox()
+        if (runtime == null) {
+            awaitingAck = false
+            if (tick % MAIN_TICKS == 0) publishSettings()
+            return
+        }
+        val values = currentSettingValues(runtime)
+        if (!awaitingAck) {
+            if (values.isNotEmpty() && "読み出しています" in settingsStatus) settingsStatus = "${values.size} 項目を読み出しました。"
+        } else {
+            val acks = runtime.pipeline.acks
+            val replies = synchronized(acks) { acks.drop(acksSeen).toList() }
+                .filter { it.target == Ubx.CFG_VALSET || it.target == Ubx.CFG_NAV5 || it.target == Ubx.CFG_RATE }
+                .map { it.ok }
+            if (replies.isNotEmpty()) {
+                awaitingAck = false
+                readSettings()
+                settingsStatus = if (replies.all { it }) "受信機が設定を受け付けました。"
+                else "受信機が設定を拒否しました（NAK）。値の範囲や対応状況を確認してください。"
+            }
+        }
+        if (tick % MAIN_TICKS == 0) publishSettings()
+    }
+
+    private fun currentSettingValues(runtime: Runtime): Map<String, Int> =
+        ReceiverConfig.currentValues(generation(runtime), runtime.pipeline.cfgValues, runtime.pipeline.nav5, runtime.pipeline.rate)
+
+    /** 読み出しの応答（設定キーごとの ACK / NAK、M8 は CFG-NAV5 / RATE）がそろったか、5 秒たったか。 */
+    private fun readDone(runtime: Runtime): Boolean {
+        if (readStartedAt == 0L) return false
+        if (System.currentTimeMillis() - readStartedAt > READ_TIMEOUT_MS) return true
+        val gen = generation(runtime)
+        if (gen == "M8") return runtime.pipeline.nav5 != null && runtime.pipeline.rate != null
+        val acks = runtime.pipeline.acks
+        val replies = synchronized(acks) { acks.drop(readAcksStart).count { it.target == Ubx.CFG_VALGET } }
+        return replies >= ReceiverConfig.ITEMS.size
+    }
+
+    private fun publishSettings() {
+        val runtime = liveUblox()
+        _settings.value = SettingsView(
+            connected = runtime != null,
+            gen = generation(runtime),
+            detected = runtime?.pipeline?.version?.gen,
+            genChoice = prefs.settingsGen,
+            layers = prefs.settingsLayers,
+            values = runtime?.let { currentSettingValues(it) } ?: emptyMap(),
+            status = if (runtime == null) app.getString(jp.kjtr.ubloxmonitor.R.string.settings_not_connected) else settingsStatus,
+            readDone = runtime?.let { readDone(it) } == true,
+            awaitingAck = awaitingAck,
+        )
+    }
+
+    /**
+     * 接続中のポートで RTCM3 の入力を受け付けるよう、受信機を設定する（RAM のみ。Python 版 enable_rtcm_input）。
+     * 結果は RTK 補正タブの 1 行に出す。
+     */
+    fun enableRtcmInput() {
+        val runtime = liveUblox()
+        if (runtime == null) {
+            correction.setMessage("受信機に接続してから押してください。")
+            return
+        }
+        if (!ReceiverConfig.usesKeys(generation(runtime))) {
+            correction.setMessage("M8 世代の RTCM 入力の設定には対応していません。")
+            return
+        }
+        val item = ReceiverConfig.ITEM_BY_IDENT.getValue(ReceiverConfig.RTCM3_INPUT.getValue(runtime.receiverPort))
+        runtime.source.send(listOf(Ubx.buildValset(mapOf(item.key to 1L))))
+        runtime.pipeline.log("${item.label} を有効にしました（RAM）")
+        correction.setMessage("${item.label} を有効にしました（RAM のみ。電源を切ると戻ります）。")
     }
 
     /** データ源の終了や切断を検出する。 */
@@ -406,6 +608,7 @@ class MonitorRepository(private val app: Context) {
             runtime.pipeline.log(message)
             runtime.pipeline.stopLogging()
             if (runtime.channel == Channel.UBLOX) {
+                awaitingAck = false
                 _usbMessage.value = message
                 stopMock()
                 refreshDevices()
@@ -575,6 +778,7 @@ class MonitorRepository(private val app: Context) {
         }
         _views.value = map
         _compare.value = buildCompare(map)
+        publishSettings()
         val ms = _mockState.value
         if (ms.status == MockStatus.ACTIVE) _mockState.value = ms.copy(published = mock.published)
     }
@@ -584,5 +788,7 @@ class MonitorRepository(private val app: Context) {
         /** 画面は 0.5 秒ごとに更新する */
         const val MAIN_TICKS = 2
         const val MAX_LOG_LINES = 2000
+        /** 受信機設定の読み出しの応答を待つ時間 */
+        const val READ_TIMEOUT_MS = 5000L
     }
 }

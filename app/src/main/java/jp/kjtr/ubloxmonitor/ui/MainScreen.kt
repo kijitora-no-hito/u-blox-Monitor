@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import jp.kjtr.ubloxmonitor.R
 import jp.kjtr.ubloxmonitor.data.ChannelView
 import jp.kjtr.ubloxmonitor.data.MonitorRepository
+import jp.kjtr.ubloxmonitor.data.source.Channel
 import jp.kjtr.ubloxmonitor.domain.ChartMath
 import jp.kjtr.ubloxmonitor.domain.Display
 import jp.kjtr.ubloxmonitor.domain.PvtSeries
@@ -64,7 +65,11 @@ fun MainScreen(repo: MonitorRepository, padding: PaddingValues) {
     val views by repo.views.collectAsState()
     val selected by repo.selected.collectAsState()
     val logs by repo.logs.collectAsState()
+    val correction by repo.correction.view.collectAsState()
     val view = views[selected] ?: views.values.firstOrNull()
+    // RTK 補正の受信状態は u-blox のときだけ（補正を送っている先）
+    val corr = if (view?.channel == Channel.UBLOX && correction.running) correction.snapshot else null
+    val corrText = Display.correctionText(view?.snapshot?.pvt, corr != null, (corr?.rate ?: 0.0) * 8 / 1000)
 
     BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
         val wide = maxWidth >= 600.dp
@@ -83,7 +88,7 @@ fun MainScreen(repo: MonitorRepository, padding: PaddingValues) {
             if (wide) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatusSection(view)
+                        StatusSection(view, corrText)
                         Section(stringResource(R.string.sky_title)) { SkyPlot(view.snapshot.satellites) }
                     }
                     Column(Modifier.weight(1.4f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -94,7 +99,7 @@ fun MainScreen(repo: MonitorRepository, padding: PaddingValues) {
                     }
                 }
             } else {
-                StatusSection(view)
+                StatusSection(view, corrText)
                 Section(stringResource(R.string.sky_title)) { SkyPlot(view.snapshot.satellites) }
                 Section(stringResource(R.string.cn0_title)) { Cn0Bars(view.snapshot.satellites) }
                 SignalSection(view)
@@ -106,12 +111,12 @@ fun MainScreen(repo: MonitorRepository, padding: PaddingValues) {
 }
 
 @Composable
-private fun StatusSection(view: ChannelView) {
+private fun StatusSection(view: ChannelView, correctionText: String) {
     val snap = view.snapshot
     val pvt = snap.pvt
     val text = Display.statusText(pvt)
     val values = text + mapOf(
-        "correction" to Display.correctionText(pvt),
+        "correction" to correctionText,
         "messages" to Display.messageText(snap.counts),
         "errors" to view.checksumErrors.toString(),
         "record" to Display.recordText(view.record),

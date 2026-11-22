@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   u-blox Monitor（jp.kjtr.ubloxmonitor）。
-  通信: 地図タブで［地図を表示］を押したときだけ国土地理院の地図タイルを取得する。それ以外はインターネットに出ない。
+  通信: 地図タブで［地図を表示］を押したときだけ国土地理院の地図タイルを取得する。
+  RTK 補正タブで［補正情報の受信を開始］・［一覧を取得］を押したときだけ、利用者が入れた NTRIP キャスター / TCP サーバに接続する。
+  それ以外はインターネットに出ない。
   USB: u-blox 受信機（内蔵 USB / FTDI・CP210x・CH34x・PL2303 経由）を USB ホストでつなぐ。
+  RTK 補正の受信元として、別の USB シリアル機器（基準局の無線機など）もつなげる。
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -27,6 +30,8 @@
     <application
         android:name=".UbloxApp"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

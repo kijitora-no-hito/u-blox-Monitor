@@ -25,9 +25,10 @@ import kotlinx.coroutines.launch
 
 /**
  * 接続を保つフォアグラウンドサービス。受信・集計・記録は MonitorRepository（Application スコープ）が行い、
- * ここはプロセスを保って通知に測位状態と「切断」を出すだけ。動いている実機・内蔵 GNSS が無くなったら終わる。
+ * ここはプロセスを保って通知に測位状態と「切断」を出すだけ。動いている実機・内蔵 GNSS・補正の受信が無くなったら終わる。
+ * 補正の受信（NTRIP など）もこのサービスの下で続ける（画面を閉じても切れない）。
  *
- * 種別は USB 接続中なら connectedDevice、位置情報の権限があり擬似ロケーション ON か内蔵 GNSS を使うなら location も。
+ * 種別は USB 接続中・補正の受信中なら connectedDevice（受信した補正を USB の受信機へ送るため）、位置情報の権限があり擬似ロケーション ON か内蔵 GNSS を使うなら location も。
  */
 class MonitorService : LifecycleService() {
     private var loop: Job? = null
@@ -49,7 +50,7 @@ class MonitorService : LifecycleService() {
             repo.disconnectAll()
         }
         val types = serviceTypes()
-        if (!repo.hasLiveSource() || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && types == 0)) {
+        if (!repo.keepsService() || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && types == 0)) {
             // startForegroundService で起動された場合に備えて一度は前面にしてから止める
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && types != 0) {
                 startInForeground(types)
@@ -62,7 +63,7 @@ class MonitorService : LifecycleService() {
             loop = lifecycleScope.launch {
                 while (true) {
                     delay(1000)
-                    if (!repo.hasLiveSource()) {
+                    if (!repo.keepsService()) {
                         stopSelfNow()
                         break
                     }
@@ -93,7 +94,9 @@ class MonitorService : LifecycleService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return 0
         val repo = (application as UbloxApp).repository
         var types = 0
-        if (repo.isRunning(Channel.UBLOX)) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+        if (repo.isRunning(Channel.UBLOX) || repo.correction.isRunning()) {
+            types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+        }
         val locationGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
         val wantsLocation = repo.isRunning(Channel.INTERNAL) || repo.mockState.value.status == MockStatus.ACTIVE
@@ -112,6 +115,7 @@ class MonitorService : LifecycleService() {
             val rec = if (repo.recordStatus(channel) != null) getString(R.string.notif_recording) else ""
             lines.add("${getString(channel.labelRes)}: $state$rec")
         }
+        repo.correction.statusLine()?.let { lines.add(getString(R.string.notif_correction, it)) }
         if (repo.mockState.value.status == MockStatus.ACTIVE) lines.add(getString(R.string.notif_mock))
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),

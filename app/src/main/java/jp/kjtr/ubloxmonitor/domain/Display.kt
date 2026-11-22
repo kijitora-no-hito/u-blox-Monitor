@@ -59,7 +59,7 @@ object Display {
         )
     }
 
-    /** 補正情報の受信は 2 段目で足す。それまでは Python 版の「停止中」の表示と同じ。 */
+    /** メインタブに出す RTK 補正の状態（Python 版 _correction_text）。kbps は補正の受信レート。 */
     fun correctionText(pvt: Pvt?, running: Boolean = false, kbps: Double = 0.0): String {
         val age = pvt?.correctionAgeText ?: "—"
         if (!running) return if (pvt != null && pvt.correctionAge != 0) "停止中（経過 $age）" else "停止中"
