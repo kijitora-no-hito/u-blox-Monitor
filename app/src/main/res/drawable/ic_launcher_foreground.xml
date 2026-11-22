@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  アダプティブアイコンの前景（GNSS 衛星と電波）。図柄は中心 (54,54) から半径 33 の内側に収めてある。
+  図柄を変えるときは monochrome と mipmap/ もまとめて直すこと。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-35">
+        <!-- 太陽電池パネル（左右） -->
+        <path android:fillColor="#4FC3F7" android:pathData="M26,48 H44 V60 H26 Z" />
+        <path android:fillColor="#4FC3F7" android:pathData="M64,48 H82 V60 H64 Z" />
+        <!-- パネルの区切り -->
+        <path android:fillColor="#0F2D44" android:pathData="M34.5,48 H35.5 V60 H34.5 Z M72.5,48 H73.5 V60 H72.5 Z" />
+        <!-- 腕 -->
+        <path android:fillColor="#F5F7FA" android:pathData="M44,52.5 H64 V55.5 H44 Z" />
+        <!-- 本体 -->
+        <path android:fillColor="#F5F7FA" android:pathData="M48,47 H60 A1,1 0 0 1 61,48 V60 A1,1 0 0 1 60,61 H48 A1,1 0 0 1 47,60 V48 A1,1 0 0 1 48,47 Z" />
+        <!-- 電波 -->
+        <path android:strokeColor="#FFC107" android:strokeWidth="3" android:strokeLineCap="round"
+            android:pathData="M60,64.39 A12,12 0 0 1 48,64.39" />
+        <path android:strokeColor="#FFC107" android:strokeWidth="3" android:strokeLineCap="round"
+            android:pathData="M63.5,70.45 A19,19 0 0 1 44.5,70.45" />
+    </group></vector>

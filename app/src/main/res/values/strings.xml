@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">u-blox Monitor</string>
+
+    <!-- 下のナビ -->
+    <string name="nav_connect">接続</string>
+    <string name="nav_main">メイン</string>
+    <string name="nav_map">地図</string>
+    <string name="nav_logs">記録</string>
+
+    <!-- データ源 -->
+    <string name="source_ublox">u-blox</string>
+    <string name="source_internal">内蔵 GNSS</string>
+    <string name="source_replay">再生</string>
+
+    <!-- 接続 -->
+    <string name="connect_title">受信機（USB）</string>
+    <string name="device">接続先</string>
+    <string name="refresh">更新</string>
+    <string name="no_devices">USB の受信機が見つかりません。OTG ケーブル（または USB-C 直結）でつないで［更新］を押してください。</string>
+    <string name="baud">ボーレート</string>
+    <string name="receiver_port">受信機側</string>
+    <string name="receiver_port_help">スマホがつながっている受信機側のポート。出力メッセージの設定先に使う。自動: u-blox の USB なら USB、USB シリアル変換（FTDI など）なら UART1 とみなす</string>
+    <string name="port_auto">自動</string>
+    <string name="port_usb">USB</string>
+    <string name="port_uart1">UART1</string>
+    <string name="port_uart2">UART2</string>
+    <string name="auto_setup">接続時に設定</string>
+    <string name="connect">接続</string>
+    <string name="disconnect">切断</string>
+    <string name="setup_output">出力メッセージを設定</string>
+    <string name="setup_output_help">［出力メッセージを設定］は NAV-PVT / NAV-SAT / RXM-RAWX / RXM-SFRBX / RXM-MEASX の出力を有効にします（RAM のみ。電源を切ると戻る）。「接続時に設定」がオンなら接続したときに自動で行います。</string>
+    <string name="status_not_connected">未接続</string>
+    <string name="status_disconnected">切断しました</string>
+    <string name="connecting_wait">%1$s に接続中（受信機の応答待ち）</string>
+    <string name="usb_permission_denied">USB の使用が許可されませんでした。</string>
+    <string name="open_failed">接続できません: %1$s</string>
+
+    <!-- 記録 -->
+    <string name="record_title">記録</string>
+    <string name="record_start">記録開始</string>
+    <string name="record_stop">記録停止</string>
+    <string name="record_folder">保存先: %1$s</string>
+    <string name="recording_now">（記録中）</string>
+
+    <!-- 擬似ロケーション -->
+    <string name="mock_title">擬似ロケーション</string>
+    <string name="mock_switch">u-blox の位置を Android の位置情報として流す</string>
+    <string name="mock_off">オフ</string>
+    <string name="mock_waiting">オン（u-blox 受信機を接続すると流します）</string>
+    <string name="mock_active">流しています（GPS・ネットワーク、%1$d 点）</string>
+    <string name="mock_not_selected">このアプリが「仮の現在地情報アプリ」に選ばれていません。開発者オプションで u-blox Monitor を選んでから、もう一度オンにしてください。</string>
+    <string name="mock_help">u-blox 受信機の NAV-PVT（緯度経度・楕円体高・標高・精度・速度・方位）を、他のアプリ（地図アプリなど）が使う位置情報として流します。測位できていないときは流しません。切断・オフで元に戻します。</string>
+    <string name="open_dev_options">開発者オプションを開く</string>
+
+    <!-- メイン -->
+    <string name="no_source">データがありません。［接続］で受信機をつなぐか、［記録］から UBX ログを再生してください。</string>
+    <string name="status_box">測位</string>
+    <string name="row_utc">時刻（UTC）</string>
+    <string name="row_lat">緯度</string>
+    <string name="row_lon">経度</string>
+    <string name="row_height">楕円体高</string>
+    <string name="row_msl">標高（MSL）</string>
+    <string name="row_nrsv">使用衛星数</string>
+    <string name="row_hacc">水平精度</string>
+    <string name="row_vacc">垂直精度</string>
+    <string name="row_pdop">PDOP</string>
+    <string name="row_speed">速度</string>
+    <string name="row_heading">進行方位</string>
+    <string name="row_correction">RTK 補正</string>
+    <string name="row_messages">受信メッセージ</string>
+    <string name="row_errors">チェックサムエラー</string>
+    <string name="row_record">記録</string>
+    <string name="sky_title">スカイプロット（塗りつぶし: 測位に使用）</string>
+    <string name="cn0_title">衛星ごとの C/N0 [dB-Hz]</string>
+    <string name="signals_title">信号別の追尾数</string>
+    <string name="tab_history">測位履歴</string>
+    <string name="tab_satellites">全衛星</string>
+    <string name="chart_window">表示幅</string>
+    <string name="chart_mode">測位状態</string>
+    <string name="chart_offset">位置の変化（平均からの差）</string>
+    <string name="chart_accuracy">推定精度</string>
+    <string name="chart_nrsv">使用衛星数</string>
+    <string name="log_title">ログ</string>
+
+    <!-- 地図 -->
+    <string name="map_show">地図を表示（国土地理院に接続）</string>
+    <string name="map_close">地図を閉じる</string>
+    <string name="map_follow">現在位置に追従</string>
+    <string name="map_type_std">標準地図</string>
+    <string name="map_type_pale">淡色地図</string>
+    <string name="map_type_photo">写真</string>
+    <string name="map_notice">［地図を表示］を押すと、地図タイル（国土地理院 cyberjapandata.gsi.go.jp）をインターネットから取得します。表示している場所の概略が地図サーバに伝わります。［地図を閉じる］で接続を止めます。</string>
+    <string name="map_position">現在位置: %1$.7f°, %2$.7f°（軌跡 %3$d 点）</string>
+    <string name="attribution">出典：国土地理院</string>
+
+    <!-- 記録・再生 -->
+    <string name="replay_title">UBX 再生</string>
+    <string name="speed_1">1倍速</string>
+    <string name="speed_10">10倍速</string>
+    <string name="speed_60">60倍速</string>
+    <string name="speed_max">最大</string>
+    <string name="open_file">ファイルを選んで再生</string>
+    <string name="stop_replay">再生停止</string>
+    <string name="replay_running">再生中: %1$s</string>
+    <string name="replay_finished">再生が終わりました</string>
+    <string name="replay_stopped">再生を止めました</string>
+    <string name="logs_title">記録した UBX ログ</string>
+    <string name="logs_empty">まだ記録がありません。</string>
+    <string name="play">再生</string>
+    <string name="share">共有</string>
+    <string name="delete">削除</string>
+    <string name="delete_confirm">%1$s を削除しますか？</string>
+    <string name="cancel">キャンセル</string>
+
+    <!-- 通知 -->
+    <string name="notif_channel">受信機との接続</string>
+    <string name="notif_waiting">測位を待っています</string>
+    <string name="notif_fix">%1$s・使用 %2$d 機</string>
+    <string name="notif_recording">・記録中</string>
+    <string name="notif_mock">擬似ロケーションを流しています</string>
+    <string name="notif_disconnect">切断</string>
+</resources>
