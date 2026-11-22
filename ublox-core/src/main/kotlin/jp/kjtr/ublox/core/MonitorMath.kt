@@ -70,6 +70,28 @@ object MonitorMath {
         return lines
     }
 
+    /** MON-VER の衛星系の項目 ID → u-blox モニターの衛星系名（SBAS・NavIC は OTHER なので対象外） */
+    private val GROUP_OF_SYSTEM = mapOf("GPS" to "GPS", "GLO" to "GLONASS", "GAL" to "GALILEO", "BDS" to "BEIDOU", "QZSS" to "QZSS")
+
+    /**
+     * MON-VER から受信機が対応しないと分かる u-blox モニターの衛星系名（X20P なら GLONASS）。
+     * MON-VER が無い・衛星系の行が無い（古いファームウェア）なら空。OTHER は含めない。
+     */
+    fun unsupportedGroups(version: MonVer?): Set<String> {
+        val supported = ReceiverConfig.supportedSystems(version) ?: return emptySet()
+        return GROUP_OF_SYSTEM.filterKeys { it !in supported }.values.toSet()
+    }
+
+    /** トレンドの履歴に点がある帯域（L1 / L2 / L5 / L6。MEASX の点は L1） */
+    fun bandsWithData(trend: TrendSnapshot): Set<String> {
+        val out = LinkedHashSet<String>()
+        for (sats in trend.history.values) for (items in sats.values) for (p in items) {
+            val band = if (p.signal != null) Ubx.SIGNAL_BANDS[p.signal] else "L1"
+            if (band != null && trend.now - p.t <= TREND_SECONDS) out.add(band)
+        }
+        return out
+    }
+
     /** SFRBX の棒の高さ（論理座標。受信数の 100 ごとに繰り返す） */
     fun sfrbxHeight(entry: SfrbxEntry): Double = minOf(120.0, entry.count % 100 * 1.2)
 }

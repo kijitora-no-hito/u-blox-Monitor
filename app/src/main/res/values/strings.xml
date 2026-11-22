@@ -265,9 +265,14 @@
     <string name="monitor_tab_signal">信号（RAWX / MEASX）</string>
     <string name="monitor_tab_sfrbx">SFRBX モニター</string>
     <string name="monitor_tab_trend">トレンド（5 分）</string>
+    <string name="monitor_tab_signal_short">信号</string>
+    <string name="monitor_tab_sfrbx_short">SFRBX</string>
+    <string name="monitor_tab_trend_short">トレンド</string>
+    <string name="monitor_no_satellites">%1$s: 衛星なし</string>
+    <string name="monitor_measx_legend">棒の下の 5 行: wChips / fChips / cPhase / iPhase / RMSE（MEASX）</string>
     <string name="monitor_no_source">データ源がありません。［接続］で u-blox 受信機か内蔵 GNSS を始めるか、記録を再生してください。</string>
     <string name="monitor_internal_note">内蔵 GNSS には RXM-MEASX・RXM-SFRBX がありません。信号は RAWX の C/N0 と追尾状態だけで（マルチパス・MEASX の値は出ません）、SFRBX モニターは空です。</string>
     <string name="monitor_signal_help">棒の高さが C/N0、色がマルチパスの指標（灰 0・緑 1・黄 2・赤 3）、上の小さな枠が帯域（L1 / L2 / L5 / L6）ごとの追尾状態（緑の地 = 追尾中、明るい数字 = 搬送波位相が有効）。棒の下は MEASX の wChips・fChips・cPhase・iPhase・RMSE（RMSE が 30 を超えると赤）。衛星系の段は横にスクロールできます。</string>
     <string name="monitor_sfrbx_help">棒は航法メッセージ（SFRBX）の受信数（100 ごとに繰り返す）。GPS / QZSS の L1C/A は左の 1〜5 に受信したサブフレームの番号を出します。</string>
-    <string name="monitor_trend_help">直近 5 分。各図の 4 段は上から C/N0・マルチパス・RMSE・追尾状態（右端が今）。色は衛星番号ごと。右上で衛星を絞り込めます。</string>
+    <string name="monitor_trend_help">直近 5 分。各図の 4 段は上から C/N0・マルチパス・RMSE・追尾状態（右端が今）。色は衛星番号ごと。右端の数字は各段の上端・下端の値。右上で衛星を絞り込めます。</string>
 </resources>

@@ -121,4 +121,22 @@ class MonitorViewTest {
         assertTrue(MonitorMath.measxValues(gps).none { it == "-" })
         assertEquals(36.0, MonitorMath.sfrbxHeight(SfrbxEntry(130, setOf(1))), 1e-9)
     }
+
+    @Test
+    fun unsupportedGroupsAndBandsWithData() {
+        val x20p = Ubx.parseMonVer(
+            UbxStream().feed(UbxSamples.monVer("ZED-X20P", "50.02", "000B0000", listOf("GPS;GAL;BDS", "SBAS;QZSS", "NAVIC"))).single().payload
+        )
+        assertEquals(setOf("GLONASS"), MonitorMath.unsupportedGroups(x20p))
+        assertTrue(MonitorMath.unsupportedGroups(null).isEmpty())
+        val trend = TrendSnapshot(
+            100.0, emptyMap(),
+            mapOf(
+                "GPS" to mapOf(5 to listOf(TrendPoint(99.0, 40, 0, 0, 1, 1, 0 to 3), TrendPoint(99.0, 40, 0, 0, 1, 1, null))),
+                "GALILEO" to mapOf(4 to listOf(TrendPoint(98.0, 40, 0, 0, 1, 1, 2 to 8))),
+                "BEIDOU" to mapOf(21 to listOf(TrendPoint(-300.0, 40, 0, 0, 1, 1, 3 to 7))),   // 5 分より前
+            ),
+        )
+        assertEquals(setOf("L2", "L1", "L6"), MonitorMath.bandsWithData(trend))
+    }
 }

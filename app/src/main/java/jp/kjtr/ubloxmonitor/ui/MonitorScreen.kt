@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -87,6 +88,7 @@ private const val PHONE_SCALE = 0.85f
  * データ源はメインタブと同じ選択（u-blox / 内蔵 / 再生）。表示中のタブだけ更新する（信号・SFRBX は 0.5 秒、トレンドは 1 秒ごと）。
  * 横長（幅 600dp 以上の横向き・タブレット）は PC 版と同じ 2 段の配置を幅に合わせて縮小、
  * 縦画面は衛星系ごとの段に分けて横にスクロール（使っている枠だけ）、トレンドは帯域を切り替えて 1 つずつ出す。
+ * 縦画面では、MON-VER で受信機が対応しないと分かる衛星系（X20P の GLONASS）は出さず、衛星が 1 機も無い衛星系は「衛星なし」の 1 行に縮める。
  */
 @Composable
 fun MonitorScreen(repo: MonitorRepository, padding: PaddingValues) {
@@ -96,11 +98,15 @@ fun MonitorScreen(repo: MonitorRepository, padding: PaddingValues) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var snap by remember { mutableStateOf<MonitorSnapshot?>(null) }
     var trend by remember { mutableStateOf<TrendSnapshot?>(null) }
+    var hidden by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     LaunchedEffect(channel, tab) {
         var tick = 0
         while (true) {
-            val state = repo.pipeline(channel)?.state
+            val pipeline = repo.pipeline(channel)
+            val state = pipeline?.state
+            // 受信機が対応しない衛星系（MON-VER が無い再生などでは空 → 「衛星なし」の 1 行になる）
+            hidden = MonitorMath.unsupportedGroups(pipeline?.version)
             if (tab == TAB_TREND) {
                 // トレンドは重いので 1 秒ごと（Python 版 slow_tick）
                 if (tick % 2 == 0) trend = state?.trendSnapshot()
@@ -124,15 +130,18 @@ fun MonitorScreen(repo: MonitorRepository, padding: PaddingValues) {
                 }
             }
             TabRow(selectedTabIndex = tab) {
-                listOf(R.string.monitor_tab_signal, R.string.monitor_tab_sfrbx, R.string.monitor_tab_trend).forEachIndexed { i, label ->
+                // 縦画面は短い名前（「信号（RAWX /」で切れたため）
+                val labels = if (wide) listOf(R.string.monitor_tab_signal, R.string.monitor_tab_sfrbx, R.string.monitor_tab_trend)
+                else listOf(R.string.monitor_tab_signal_short, R.string.monitor_tab_sfrbx_short, R.string.monitor_tab_trend_short)
+                labels.forEachIndexed { i, label ->
                     Tab(selected = tab == i, onClick = { tab = i }, text = { Text(stringResource(label), maxLines = 1) })
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth().background(MON_BG)) {
                 when (tab) {
-                    TAB_SIGNAL -> snap?.let { SignalView(it, wide) }
-                    TAB_SFRBX -> snap?.let { SfrbxView(it, wide) }
-                    else -> trend?.let { TrendView(it, wide) }
+                    TAB_SIGNAL -> snap?.let { SignalView(it, wide, hidden) }
+                    TAB_SFRBX -> snap?.let { SfrbxView(it, wide, hidden) }
+                    else -> trend?.let { TrendView(it, wide, hidden) }
                 }
             }
         }
@@ -171,28 +180,61 @@ private fun DrawScope.scaled(logicalWidth: Float, logicalHeight: Float, draw: Dr
 
 /** 縦画面の 1 衛星系の段: 見出しと、横にスクロールする図。 */
 @Composable
-private fun SystemRow(name: String, cfg: MonitorSystem, slots: Int, logicalHeight: Float, draw: DrawScope.(MonText) -> Unit) {
+private fun SystemRow(
+    name: String, cfg: MonitorSystem, slots: Int, logicalHeight: Float,
+    labels: (DrawScope.(MonText) -> Unit)? = null,
+    draw: DrawScope.(MonText) -> Unit,
+) {
     val tm = rememberTextMeasurer()
     val text = remember(tm) { MonText(tm) }
     val logicalWidth = 20f + slots * MonitorMath.SLOT
     Column(Modifier.padding(vertical = 4.dp)) {
         Text(name, color = hex(cfg.color), fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp))
-        Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-            Canvas(Modifier.size(width = (logicalWidth * PHONE_SCALE).dp, height = (logicalHeight * PHONE_SCALE).dp)) {
-                scaled(logicalWidth, logicalHeight) { draw(text) }
+        Row {
+            // 項目名の列はスクロールしても左端に残す
+            if (labels != null) {
+                Canvas(Modifier.size(width = (LABEL_WIDTH * PHONE_SCALE).dp, height = (logicalHeight * PHONE_SCALE).dp)) {
+                    scaled(LABEL_WIDTH, logicalHeight) { labels(text) }
+                }
+            }
+            Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
+                Canvas(Modifier.size(width = (logicalWidth * PHONE_SCALE).dp, height = (logicalHeight * PHONE_SCALE).dp)) {
+                    scaled(logicalWidth, logicalHeight) { draw(text) }
+                }
             }
         }
     }
 }
 
+/** 項目名の列の幅（論理 px） */
+private const val LABEL_WIDTH = 54f
+
+/** 縦画面で衛星が 1 機も無い衛星系の 1 行。 */
+@Composable
+private fun EmptySystemRow(name: String, cfg: MonitorSystem) {
+    Text(
+        stringResource(R.string.monitor_no_satellites, name), color = hex(cfg.color).copy(alpha = 0.7f), fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+    )
+}
+
+/** 縦画面に出す衛星系（対応しない衛星系は除く）と、衛星が 1 機でもあるか。 */
+private fun phoneSystems(seen: Map<String, List<Int>>, hidden: Set<String>): List<Triple<String, MonitorSystem, Boolean>> =
+    MONITOR_SYSTEMS.entries.filter { it.key !in hidden }.map { (name, cfg) -> Triple(name, cfg, !seen[name].isNullOrEmpty()) }
+
 // ---- 信号（RAWX / MEASX） ----
 
 @Composable
-private fun SignalView(data: MonitorSnapshot, wide: Boolean) {
+private fun SignalView(data: MonitorSnapshot, wide: Boolean, hidden: Set<String>) {
     if (wide) {
         val tm = rememberTextMeasurer()
         val text = remember(tm) { MonText(tm) }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            // 棒の下の 5 行の凡例
+            Text(
+                stringResource(R.string.monitor_measx_legend), color = Color(0xFFAAAAAA), fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
             val w = MonitorMath.SIGNAL_WIDTH.toFloat()
             val h = MonitorMath.SIGNAL_HEIGHT.toFloat()
             Canvas(Modifier.fillMaxWidth().aspectRatio(w / h)) {
@@ -208,10 +250,14 @@ private fun SignalView(data: MonitorSnapshot, wide: Boolean) {
         }
     } else {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            for ((name, cfg) in MONITOR_SYSTEMS) {
-                val slots = maxOf(1, data.seen[name]?.size ?: 0)
-                // 枠の上（帯域の小枠）から MEASX の 5 行の下まで
-                SystemRow(name, cfg, slots, logicalHeight = 400f) { text ->
+            for ((name, cfg, any) in phoneSystems(data.seen, hidden)) {
+                if (!any) {
+                    EmptySystemRow(name, cfg)
+                    continue
+                }
+                val slots = data.seen.getValue(name).size
+                // 枠の上（帯域の小枠）から MEASX の 5 行の下まで。左端に項目名の列
+                SystemRow(name, cfg, slots, logicalHeight = 400f, labels = { text -> drawSignalLabels(text, 305f) }) { text ->
                     drawSignalSystem(text, name, cfg, data, 10f, 305f, slots)
                 }
             }
@@ -219,6 +265,19 @@ private fun SignalView(data: MonitorSnapshot, wide: Boolean) {
                 stringResource(R.string.monitor_signal_help), color = Color(0xFFAAAAAA), fontSize = 11.sp,
                 modifier = Modifier.padding(12.dp),
             )
+        }
+    }
+}
+
+/** 縦画面の左端の項目名（帯域・C/N0・MEASX の 5 行）。 */
+private fun DrawScope.drawSignalLabels(text: MonText, yBase: Float) {
+    val gray = Color(0xFFAAAAAA)
+    with(text) {
+        mid("帯域", LABEL_WIDTH / 2, yBase - 293, gray, 10f)
+        mid("C/N0", LABEL_WIDTH / 2, yBase - 140, gray, 10f)
+        mid("衛星", LABEL_WIDTH / 2, yBase + 15, gray, 10f)
+        MonitorMath.MEASX_FIELDS.forEachIndexed { i, f ->
+            mid(if (f == "rmse") "RMSE" else f, LABEL_WIDTH / 2, yBase + 35 + i * 12, gray, 10f)
         }
     }
 }
@@ -265,7 +324,7 @@ private fun DrawScope.drawSignalSystem(
 // ---- SFRBX ----
 
 @Composable
-private fun SfrbxView(data: MonitorSnapshot, wide: Boolean) {
+private fun SfrbxView(data: MonitorSnapshot, wide: Boolean, hidden: Set<String>) {
     if (wide) {
         val tm = rememberTextMeasurer()
         val text = remember(tm) { MonText(tm) }
@@ -285,8 +344,12 @@ private fun SfrbxView(data: MonitorSnapshot, wide: Boolean) {
         }
     } else {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            for ((name, cfg) in MONITOR_SYSTEMS) {
-                val slots = maxOf(1, data.seen[name]?.size ?: 0)
+            for ((name, cfg, any) in phoneSystems(data.seen, hidden)) {
+                if (!any) {
+                    EmptySystemRow(name, cfg)
+                    continue
+                }
+                val slots = data.seen.getValue(name).size
                 SystemRow("$name Navigation Subframes", cfg, slots, logicalHeight = 230f) { text ->
                     drawSfrbxSystem(text, name, cfg, data, 10f, 195f, slots)
                 }
@@ -329,10 +392,11 @@ private fun DrawScope.drawSfrbxSystem(
 // ---- トレンド（5 分） ----
 
 @Composable
-private fun TrendView(data: TrendSnapshot, wide: Boolean) {
+private fun TrendView(data: TrendSnapshot, wide: Boolean, hidden: Set<String>) {
     // 衛星の絞り込み（衛星系・帯域ごと。"All" か衛星番号）
     val filters = remember { mutableStateMapOf<String, String>() }
     var phoneBand by rememberSaveable { mutableStateOf(Ubx.BANDS.first()) }
+    val bandsWithData = MonitorMath.bandsWithData(data)
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -341,12 +405,31 @@ private fun TrendView(data: TrendSnapshot, wide: Boolean) {
             // 縦画面は帯域を 1 つずつ（PC 版は 4 帯域を横に並べる）
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (band in Ubx.BANDS) {
-                    FilterChip(selected = band == phoneBand, onClick = { phoneBand = band }, label = { Text(band) })
+                    // データが無い帯域だけ押せなくする。暗い背景でも読めるよう色を決めておく
+                    FilterChip(
+                        selected = band == phoneBand, onClick = { phoneBand = band }, label = { Text(band) },
+                        enabled = band in bandsWithData || band == phoneBand,
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = Color(0xFF2C3E50), labelColor = Color(0xFFECF0F1),
+                            selectedContainerColor = Color(0xFF2980B9), selectedLabelColor = Color.White,
+                            disabledContainerColor = Color(0xFF1E1E1E), disabledLabelColor = Color(0xFF666666),
+                            disabledSelectedContainerColor = Color(0xFF1F4E6E),
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = band in bandsWithData || band == phoneBand, selected = band == phoneBand,
+                            borderColor = Color(0xFF7F8C8D), disabledBorderColor = Color(0xFF333333),
+                        ),
+                    )
                 }
             }
         }
         for ((name, cfg) in MONITOR_SYSTEMS) {
             if (name == "OTHER") continue
+            if (!wide && name in hidden) continue
+            if (!wide && data.seen[name].isNullOrEmpty()) {
+                EmptySystemRow(name, cfg)
+                continue
+            }
             val history = data.history[name].orEmpty()
             val choices = listOf(ALL) + data.seen[name].orEmpty().map { it.toString() }
             Column(
@@ -366,6 +449,10 @@ private fun TrendView(data: TrendSnapshot, wide: Boolean) {
                                 SatSelector(chosen, choices) { filters[key] = it }
                             }
                             TrendPlot(history, band, data.now, chosen, if (wide) 150.dp else 170.dp, labels = !wide)
+                            Row(Modifier.fillMaxWidth()) {
+                                Text("−5 分", color = Color(0xFF7F8C8D), fontSize = 10.sp, modifier = Modifier.weight(1f))
+                                Text("今", color = Color(0xFF7F8C8D), fontSize = 10.sp)
+                            }
                         }
                     }
                 }
@@ -377,11 +464,19 @@ private fun TrendView(data: TrendSnapshot, wide: Boolean) {
 
 private const val ALL = "All"
 
+/** トレンドの 4 段の名前（単位付き）と、段の上端・下端の目盛り（trendLines の縦の範囲） */
+private val TREND_AXES = listOf(
+    "C/N0 [dB-Hz]" to ("60" to "0"),
+    "MPath" to ("3" to "0"),
+    "RMSE" to ("63" to "0"),
+    "TrackStatus" to ("PR+CP" to "なし"),
+)
+
 /** 左の凡例（4 段の名前）。 */
 @Composable
 private fun MetricLegend(modifier: Modifier) {
     Column(modifier, verticalArrangement = Arrangement.SpaceEvenly) {
-        for (m in MonitorMath.TREND_METRICS) {
+        for ((m, _) in TREND_AXES) {
             Text(m, color = Color(0xFFECF0F1), fontSize = 11.sp)
         }
     }
@@ -411,15 +506,25 @@ private fun SatSelector(chosen: String, choices: List<String>, onSelect: (String
 private fun TrendPlot(history: Map<Int, List<TrendPoint>>, band: String, now: Double, chosen: String, height: Dp, labels: Boolean) {
     val tm = rememberTextMeasurer()
     val labelStyle = TextStyle(color = Color(0xFF7F8C8D), fontSize = 9.sp)
+    val tickStyle = TextStyle(color = Color(0xFF95A5A6), fontSize = 8.sp)
     Canvas(Modifier.fillMaxWidth().height(height).background(MON_BG)) {
         val w = size.width
         val h = size.height
         for (i in 1..3) drawLine(Color(0xFF222222), Offset(0f, i * h / 4), Offset(w, i * h / 4), 1f)
         drawRect(Color(0xFF34495E), Offset.Zero, size, style = Stroke(1f))
         if (labels) {
-            MonitorMath.TREND_METRICS.forEachIndexed { i, m ->
+            TREND_AXES.forEachIndexed { i, (m, _) ->
                 drawText(tm.measure(m, labelStyle), topLeft = Offset(3.dp.toPx(), i * h / 4 + 1.dp.toPx()))
             }
+        }
+        // 各段の上端・下端の目盛り（右端）
+        TREND_AXES.forEachIndexed { i, (_, range) ->
+            val topText = tm.measure(range.first, tickStyle)
+            val bottomText = tm.measure(range.second, tickStyle)
+            // TrackStatus の目盛りは線の位置（PR+CP 0.1、なし 0.8）に合わせる
+            val (yTop, yBottom) = if (i == 3) (i + 0.1f) * h / 4 to (i + 0.8f) * h / 4 else i * h / 4 to (i + 1) * h / 4
+            drawText(topText, topLeft = Offset(w - topText.size.width - 2.dp.toPx(), yTop + 1f))
+            drawText(bottomText, topLeft = Offset(w - bottomText.size.width - 2.dp.toPx(), yBottom - bottomText.size.height - 1f))
         }
         clipRect {
             for ((sv, items) in history) {
