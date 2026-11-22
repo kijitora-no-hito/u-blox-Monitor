@@ -1,4 +1,4 @@
-# u-blox-Monitor **Version:** Windows 版 0.3.0 / Android 版 0.4.2(プレビュー)
+# u-blox-Monitor **Version:** Windows 版 0.3.0 / Android 版 0.4.3(プレビュー)
 **Author:** Rei Furukawa (kijitora-no-hito)
 
 u-blox 受信機(M8 / F9 / X20 シリーズ)用の記録・表示・設定・解析ツールです。Windows 版は Python、Android 版は Kotlin で実装しています。
@@ -13,7 +13,7 @@ RAW データ(MEASX、SFRBX、RAWX など)を記録して、受信機の性能�
 | 対象 | ファイル | 説明 |
 |---|---|---|
 | Windows | [ublox_monitor_Setup_0.3.0.exe](https://github.com/kijitora-no-hito/u-blox-Monitor/releases/download/v0.3.0/ublox_monitor_Setup_0.3.0.exe) | インストーラ。下の「使い方」を参照 |
-| Android 7.0 以降 | [ublox_monitor_android_0.4.2.apk](https://github.com/kijitora-no-hito/u-blox-Monitor/releases/download/android-v0.4.2/ublox_monitor_android_0.4.2.apk) | プレビュー版(実機での確認が済んでいません)。下の「[Android 版](#android-版)」を参照 |
+| Android 7.0 以降 | [ublox_monitor_android_0.4.3.apk](https://github.com/kijitora-no-hito/u-blox-Monitor/releases/download/android-v0.4.3/ublox_monitor_android_0.4.3.apk) | プレビュー版。下の「[Android 版](#android-版)」を参照 |
 
 過去の版は [Releases](https://github.com/kijitora-no-hito/u-blox-Monitor/releases) にあります。
 
@@ -203,7 +203,7 @@ M8 は UBX-CFG-NAV5 / CFG-RATE で読み書きします。M8 では衛星系と�
 
 スマートフォンに USB(Type-C の OTG ケーブルなど)で u-blox 受信機をつないで、Windows 版とほぼ同じ表示・設定・記録ができるアプリです。ソースは [`android/`](android/) にあります。
 
-> **プレビュー版です。** エミュレータと記録済みデータの再生でしか確認していません。実機の受信機での動作(USB の受信、受信機設定、RTK 補正、擬似ロケーション)は未確認です。
+> **プレビュー版です。** Pixel 10 Pro(Android 17)+ ZED-X20P(FT230X 経由、921600 bps)で、USB の受信、受信機設定の読み出し、スペクトル、u-blox モニター、擬似ロケーション、記録を確認しました。RTK 補正(実際の補正サービス)、受信機設定の変更、内蔵 GNSS との比較(屋外)は未確認です。
 
 ### 必要なもの
 
@@ -215,7 +215,7 @@ M8 は UBX-CFG-NAV5 / CFG-RATE で読み書きします。M8 では衛星系と�
 1. 上の「ダウンロード」から `ublox_monitor_android_<バージョン>.apk` をスマートフォンでダウンロードする。
 2. ファイルを開き、「提供元不明のアプリ」のインストールを許可してインストールする。
 
-APK の SHA-256(0.4.2): `275878335a47a47b1b5aa07be2df5dc3463f2994215356e25d716cc338cde947`
+APK の SHA-256(0.4.3): `ba76d5dacf797817caf9420e43907a53465a95a7d60420e7ceb0a81b4531dfd7`
 
 更新は自動では届きません。新しい版の APK を同じ手順で上書きインストールしてください(記録は残ります)。
 

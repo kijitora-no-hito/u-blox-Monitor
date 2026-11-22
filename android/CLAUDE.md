@@ -8,8 +8,8 @@ STALE_SECONDS、帯域の振り分け、接続時の設定送信など）。共�
 
 - アプリ名: u-blox Monitor / applicationId・namespace・パッケージ: `jp.kjtr.ubloxmonitor`（公開後は変えない）
 - minSdk 24 / compileSdk・targetSdk 36（edge-to-edge 強制。Scaffold は `WindowInsets.safeDrawing`）。縦横どちらも対応（幅 600dp 以上で 2 列）
-- versionCode 6 / versionName 0.4.2（0.4.0 = 3 段目: スペクトル・u-blox モニター、受信機まわりのライブラリ化。0.4.1 = エミュレータで見つかった u-blox モニターの修正。
-  0.4.2 = 「その他」→「このアプリについて」（版・MIT・使っているソフトウェアのライセンス・地図の出典・通信）を追加。**GitHub で公開（プレビュー）**）
+- versionCode 7 / versionName 0.4.3（0.4.0 = 3 段目: スペクトル・u-blox モニター、受信機まわりのライブラリ化。0.4.1 = エミュレータで見つかった u-blox モニターの修正。
+  0.4.2 = 「その他」→「このアプリについて」（版・MIT・使っているソフトウェアのライセンス・地図の出典・通信）を追加。GitHub で公開。0.4.3 = 実機（Pixel 10 Pro + X20P/FT230X 921600）で取りこぼし（NAV-PVT・RAWX がほぼ全滅）が出たので USB の読み取りを専用スレッドに分け、FTDI の latency timer を 1 ms に（UsbSerialSource）。**公開中（プレビュー）**）
 - **置き場所・配布（2026-11-22〜）**: PC 版の公開リポジトリ `kijitora-no-hito/u-blox-Monitor`（public・MIT）の `android/` に同居（git subtree で履歴ごと取り込み）。
   正本は `d:\work\ublox_monitor\android`（`d:\work\android\ublox_monitor` はそこを指すジャンクションの予定）。git 操作は `d:\work\ublox_monitor` で行う。
   APK はそのリポジトリの Releases に `android-v<版>` のタグで（Windows 版は `v<版>`。Windows 版を Latest のままにするため Android 版は prerelease）。
