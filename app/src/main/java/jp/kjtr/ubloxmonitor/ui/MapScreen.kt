@@ -46,7 +46,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import jp.kjtr.ubloxmonitor.R
 import jp.kjtr.ubloxmonitor.data.MonitorRepository
 import jp.kjtr.ubloxmonitor.data.source.Channel
-import jp.kjtr.ubloxmonitor.domain.ChartMath
+import jp.kjtr.ublox.core.ChartMath
 import jp.kjtr.ubloxmonitor.domain.Display
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

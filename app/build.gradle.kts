@@ -79,12 +79,14 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
-    // USB シリアル（CDC-ACM・FTDI・CP210x・CH34x・PL2303）
-    implementation(libs.usb.serial)
+    // 受信機まわり（UBX・集計・設定・RTCM・NTRIP / USB・接続・内蔵 GNSS・擬似ロケーション・RTK 補正）
+    implementation(project(":ublox-core"))
+    implementation(project(":ublox-android"))
     // 地図（地理院タイル）
     implementation(libs.osmdroid)
 
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":ublox-core")))
 
     debugImplementation(libs.androidx.ui.tooling)
 }

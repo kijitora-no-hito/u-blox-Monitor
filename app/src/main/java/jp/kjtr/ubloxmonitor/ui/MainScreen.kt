@@ -45,9 +45,9 @@ import jp.kjtr.ubloxmonitor.R
 import jp.kjtr.ubloxmonitor.data.ChannelView
 import jp.kjtr.ubloxmonitor.data.MonitorRepository
 import jp.kjtr.ubloxmonitor.data.source.Channel
-import jp.kjtr.ubloxmonitor.domain.ChartMath
+import jp.kjtr.ublox.core.ChartMath
 import jp.kjtr.ubloxmonitor.domain.Display
-import jp.kjtr.ubloxmonitor.domain.PvtSeries
+import jp.kjtr.ublox.core.PvtSeries
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

@@ -35,9 +35,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import jp.kjtr.ubloxmonitor.R
 import jp.kjtr.ubloxmonitor.data.MonitorRepository
-import jp.kjtr.ubloxmonitor.domain.ConfigItem
-import jp.kjtr.ubloxmonitor.domain.ReceiverConfig
-import jp.kjtr.ubloxmonitor.domain.Ubx
+import jp.kjtr.ublox.core.ConfigItem
+import jp.kjtr.ublox.core.ReceiverConfig
+import jp.kjtr.ublox.core.Ubx
 
 /**
  * 受信機設定（Python 版 SettingsPanel）。接続時に読み出した現在値を表示し、変更した項目だけを確認のあとで送る。

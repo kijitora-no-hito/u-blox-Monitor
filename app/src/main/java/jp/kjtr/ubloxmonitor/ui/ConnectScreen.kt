@@ -40,7 +40,7 @@ import jp.kjtr.ubloxmonitor.data.MockStatus
 import jp.kjtr.ubloxmonitor.data.MonitorRepository
 import jp.kjtr.ubloxmonitor.data.source.Channel
 import jp.kjtr.ubloxmonitor.domain.Display
-import jp.kjtr.ubloxmonitor.domain.Link
+import jp.kjtr.ublox.core.Link
 
 /** 受信機側の選択肢（Python 版 RECEIVER_PORTS）。null は自動 */
 private val RECEIVER_PORTS = listOf<Pair<Int, String?>>(

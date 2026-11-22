@@ -27,3 +27,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "UbloxMonitor"
 include(":app")
+// 受信機まわりの部品（ほかのアプリからも使えるように分けた。docs/LIBRARY.md）
+include(":ublox-core")     // Kotlin/JVM（Android に依存しない）: UBX・集計・記録/再生・受信機設定・RTCM・NTRIP
+include(":ublox-android")  // Android ライブラリ: USB・UbloxReceiver・内蔵 GNSS・擬似ロケーション・RTK 補正

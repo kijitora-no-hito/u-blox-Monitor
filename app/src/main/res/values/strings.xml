@@ -42,8 +42,6 @@
     <string name="status_not_connected">未接続</string>
     <string name="status_disconnected">切断しました</string>
     <string name="connecting_wait">%1$s に接続中（受信機の応答待ち）</string>
-    <string name="usb_permission_denied">USB の使用が許可されませんでした。</string>
-    <string name="open_failed">接続できません: %1$s</string>
 
     <!-- 内蔵 GNSS -->
     <string name="internal_title">内蔵 GNSS（このスマホ）</string>
@@ -53,19 +51,8 @@
     <string name="internal_no_permission">正確な位置情報（ACCESS_FINE_LOCATION）が許可されていません。</string>
     <string name="internal_permission_denied">位置情報が許可されませんでした。「正確な位置情報」を許可すると内蔵 GNSS を使えます。</string>
     <string name="open_app_settings">アプリの設定を開く</string>
-    <string name="internal_started">内蔵 GNSS を開始しました</string>
     <string name="internal_stopped">内蔵 GNSS を停止しました</string>
     <string name="internal_ended">内蔵 GNSS が止まりました: %1$s</string>
-    <string name="internal_provider_off">端末の位置情報（GPS）がオフです。設定でオンにしてください。</string>
-    <string name="internal_mock">擬似ロケーション中のため内蔵の位置は使えません（衛星・生の測定値は出します）</string>
-    <string name="internal_waiting_fix">内蔵の位置を待っています</string>
-    <string name="internal_meas_unsupported">この端末は GNSS の生の測定値に対応していません（RXM-RAWX なし。NAV-PVT・NAV-SAT だけ出します）</string>
-    <string name="internal_meas_not_allowed">生の測定値の取得が許可されていません（RXM-RAWX なし）</string>
-    <string name="internal_meas_waiting">生の測定値（RXM-RAWX）を待っています</string>
-    <string name="internal_meas_no_clock">生の測定値は届いていますが RXM-RAWX はまだ出していません（%1$s）</string>
-    <string name="internal_meas_full">生の測定値: RXM-RAWX %1$d 回（完全な追跡を要求中）</string>
-    <string name="internal_meas_ok">生の測定値: RXM-RAWX %1$d 回</string>
-    <string name="internal_full_tracking_hint">Android 11 以前: 開発者オプションの「GNSS 測定の完全な追跡を強制」を ON にすると測定値が間引かれません。</string>
 
     <!-- 記録 -->
     <string name="record_title">記録</string>

@@ -23,11 +23,11 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import jp.kjtr.ubloxmonitor.domain.ChartMath
-import jp.kjtr.ubloxmonitor.domain.ChartPoint
+import jp.kjtr.ublox.core.ChartMath
+import jp.kjtr.ublox.core.ChartPoint
 import jp.kjtr.ubloxmonitor.domain.Display
-import jp.kjtr.ubloxmonitor.domain.SatView
-import jp.kjtr.ubloxmonitor.domain.Ubx
+import jp.kjtr.ublox.core.SatView
+import jp.kjtr.ublox.core.Ubx
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor

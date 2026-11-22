@@ -43,15 +43,15 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jp.kjtr.ubloxmonitor.R
-import jp.kjtr.ubloxmonitor.data.CorrectionForm
-import jp.kjtr.ubloxmonitor.data.CorrectionView
+import jp.kjtr.ublox.android.CorrectionForm
+import jp.kjtr.ublox.android.CorrectionView
 import jp.kjtr.ubloxmonitor.data.MonitorRepository
 import jp.kjtr.ubloxmonitor.data.source.Channel
-import jp.kjtr.ubloxmonitor.domain.CorrectionKind
-import jp.kjtr.ubloxmonitor.domain.Link
-import jp.kjtr.ubloxmonitor.domain.Mount
-import jp.kjtr.ubloxmonitor.domain.Ntrip
-import jp.kjtr.ubloxmonitor.domain.Rtcm
+import jp.kjtr.ublox.core.CorrectionKind
+import jp.kjtr.ublox.core.Link
+import jp.kjtr.ublox.core.Mount
+import jp.kjtr.ublox.core.Ntrip
+import jp.kjtr.ublox.core.Rtcm
 
 /** バイト数の表示文字列（Python 版 format_bytes）。 */
 private fun formatBytes(size: Long): String = when {

@@ -34,11 +34,11 @@ import jp.kjtr.ubloxmonitor.R
 import jp.kjtr.ubloxmonitor.data.CompareView
 import jp.kjtr.ubloxmonitor.data.MonitorRepository
 import jp.kjtr.ubloxmonitor.data.source.Channel
-import jp.kjtr.ubloxmonitor.domain.ChartPoint
-import jp.kjtr.ubloxmonitor.domain.Compare
+import jp.kjtr.ublox.core.ChartPoint
+import jp.kjtr.ublox.core.Compare
 import jp.kjtr.ubloxmonitor.domain.Display
-import jp.kjtr.ubloxmonitor.domain.SideSummary
-import jp.kjtr.ubloxmonitor.domain.Ubx
+import jp.kjtr.ublox.core.SideSummary
+import jp.kjtr.ublox.core.Ubx
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ublox-android は権限を宣言しない（使う側のアプリが必要なものだけ宣言する。docs/LIBRARY.md）。
+  USB ホスト・受信機の接続は権限なし（USB の許可は実行時のダイアログ）。内蔵 GNSS は ACCESS_FINE_LOCATION、
+  擬似ロケーションは ACCESS_MOCK_LOCATION、RTK 補正の NTRIP / TCP は INTERNET。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

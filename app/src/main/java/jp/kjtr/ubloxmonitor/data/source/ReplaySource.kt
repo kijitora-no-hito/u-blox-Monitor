@@ -1,8 +1,9 @@
 package jp.kjtr.ubloxmonitor.data.source
 
-import jp.kjtr.ubloxmonitor.domain.Pipeline
-import jp.kjtr.ubloxmonitor.domain.ReplayClock
-import jp.kjtr.ubloxmonitor.domain.ReplayRunner
+import jp.kjtr.ublox.android.Source
+import jp.kjtr.ublox.core.Pipeline
+import jp.kjtr.ublox.core.ReplayClock
+import jp.kjtr.ublox.core.ReplayRunner
 import java.io.InputStream
 
 /** UBX ログを再生するスレッド（Python 版 ReplaySource）。speed は倍率で、0 は待たずに読む。 */

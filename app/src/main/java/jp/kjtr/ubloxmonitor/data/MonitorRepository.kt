@@ -9,31 +9,37 @@ import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.core.content.ContextCompat
-import androidx.core.content.IntentCompat
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import jp.kjtr.ublox.android.ConnectOptions
+import jp.kjtr.ublox.android.CorrectionManager
+import jp.kjtr.ublox.android.InternalGnssSource
+import jp.kjtr.ublox.android.MockLocation
+import jp.kjtr.ublox.android.ReceiverStatus
+import jp.kjtr.ublox.android.Source
+import jp.kjtr.ublox.android.UbloxReceiver
+import jp.kjtr.ublox.android.UsbCandidate
+import jp.kjtr.ublox.core.CommonCn0
+import jp.kjtr.ublox.core.Compare
+import jp.kjtr.ublox.core.DiffHistory
+import jp.kjtr.ublox.core.LogStatus
+import jp.kjtr.ublox.core.MonVer
+import jp.kjtr.ublox.core.Ntrip
+import jp.kjtr.ublox.core.OutputProfile
+import jp.kjtr.ublox.core.Pipeline
+import jp.kjtr.ublox.core.PositionDiff
+import jp.kjtr.ublox.core.Pvt
+import jp.kjtr.ublox.core.ReceiverConfig
+import jp.kjtr.ublox.core.ReplayClock
+import jp.kjtr.ublox.core.STALE_SECONDS
+import jp.kjtr.ublox.core.SideSummary
+import jp.kjtr.ublox.core.Snapshot
+import jp.kjtr.ublox.core.TimedDiff
+import jp.kjtr.ublox.core.Ubx
+import jp.kjtr.ubloxmonitor.BuildConfig
 import jp.kjtr.ubloxmonitor.data.source.Channel
-import jp.kjtr.ubloxmonitor.data.source.InternalGnssSource
 import jp.kjtr.ubloxmonitor.data.source.ReplaySource
-import jp.kjtr.ubloxmonitor.data.source.Source
-import jp.kjtr.ubloxmonitor.data.source.UsbSerialSource
-import jp.kjtr.ubloxmonitor.domain.CommonCn0
-import jp.kjtr.ubloxmonitor.domain.Compare
-import jp.kjtr.ubloxmonitor.domain.DiffHistory
-import jp.kjtr.ubloxmonitor.domain.Link
-import jp.kjtr.ubloxmonitor.domain.PositionDiff
-import jp.kjtr.ubloxmonitor.domain.Pvt
-import jp.kjtr.ubloxmonitor.domain.STALE_SECONDS
-import jp.kjtr.ubloxmonitor.domain.SideSummary
-import jp.kjtr.ubloxmonitor.domain.TimedDiff
-import jp.kjtr.ubloxmonitor.domain.LogStatus
-import jp.kjtr.ubloxmonitor.domain.MonVer
-import jp.kjtr.ubloxmonitor.domain.Pipeline
-import jp.kjtr.ubloxmonitor.domain.ReceiverConfig
-import jp.kjtr.ubloxmonitor.domain.ReplayClock
-import jp.kjtr.ubloxmonitor.domain.Snapshot
-import jp.kjtr.ubloxmonitor.domain.Ubx
 import jp.kjtr.ubloxmonitor.service.MonitorService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -104,21 +110,23 @@ data class MockState(val status: MockStatus, val published: Long = 0)
  * 受信・デコード・集計・記録・擬似ロケーションを持つ（Application スコープ）。
  * 画面は views を 0.5 秒ごとに受け取って描く。接続を保つのは MonitorService。
  * 集計（Pipeline）はデータ源の区分（Channel）ごとに 1 つ持ち、u-blox・内蔵 GNSS・再生を同時に動かせる。
+ * u-blox の接続（USB の許可・世代の判別・出力の設定・USB 抜け）は ublox-android の [UbloxReceiver] に任せ、
+ * その接続（UbloxConnection）を Channel.UBLOX のデータ源として扱う。
  */
 class MonitorRepository(private val app: Context) {
     val prefs = Prefs(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val usbManager = app.getSystemService(Context.USB_SERVICE) as UsbManager
     private val mock = MockLocation(app)
+
+    /** u-blox 受信機の接続（ライブラリ） */
+    val receiver = UbloxReceiver(app, scope)
 
     private class Runtime(val channel: Channel, val pipeline: Pipeline, val source: Source) {
         @Volatile
         var ended = false
         var endMessage: String? = null
-        var pendingSetup = false
-        /** 接続後に受信機設定を読み出す（Python 版 _pending_read） */
+        /** 接続後に受信機設定を読み出す（Python 版 _pending_read）。UbloxReceiver が出力を設定してつながったら読む */
         var pendingRead = false
-        var pendingTicks = 0
         /** 受信機側のポート（u-blox のみ） */
         var receiverPort: String = "USB"
         var deviceName: String? = null
@@ -184,27 +192,26 @@ class MonitorRepository(private val app: Context) {
 
     /** RTK 補正（受信と受信機への転送） */
     val correction = CorrectionManager(
-        app, prefs, scope,
+        app, prefs.correctionStore, scope,
+        userAgent = Ntrip.userAgent(BuildConfig.VERSION_NAME),
         forward = ::forwardCorrection,
         roverPvt = { runtimes[Channel.UBLOX]?.takeIf { !it.ended }?.pipeline?.state?.pvt },
         ubloxConnected = { isRunning(Channel.UBLOX) },
         log = { addLog("${SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())}  [${app.getString(jp.kjtr.ubloxmonitor.R.string.source_correction)}] $it") },
+        onStarted = { MonitorService.start(app) },
     )
 
     init {
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                val device = IntentCompat.getParcelableExtra(intent, UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
-                if (intent.action == UsbManager.ACTION_USB_DEVICE_DETACHED && device != null) onDetached(device)
-                refreshDevices()
-            }
+        // 候補の一覧を作り直すだけ（つないでいる機器が外れたときの処理は UbloxReceiver）
+        val usbReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) = refreshDevices()
         }
         val filter = IntentFilter().apply {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
             addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
         }
         // システムのブロードキャストなので EXPORTED（他のアプリからは送れない保護されたもの）
-        ContextCompat.registerReceiver(app, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+        ContextCompat.registerReceiver(app, usbReceiver, filter, ContextCompat.RECEIVER_EXPORTED)
         refreshDevices()
         refreshLogFiles()
         scope.launch {
@@ -274,7 +281,6 @@ class MonitorRepository(private val app: Context) {
         val runtime = runtimes[channel] ?: return
         runtime.source.stop()
         runtime.pipeline.stopLogging()
-        runtime.pendingSetup = false
         runtime.pendingRead = false
         if (!runtime.ended) {
             runtime.ended = true
@@ -285,11 +291,7 @@ class MonitorRepository(private val app: Context) {
     }
 
     fun refreshDevices() {
-        _candidates.value = try {
-            UsbDevices.list(app)
-        } catch (e: Exception) {
-            emptyList()
-        }
+        _candidates.value = receiver.devices()
     }
 
     /** USB を差して起動されたとき。 */
@@ -298,40 +300,33 @@ class MonitorRepository(private val app: Context) {
         if (device != null) preferredDevice.value = device.deviceName
     }
 
-    private fun onDetached(device: UsbDevice) {
-        val runtime = runtimes[Channel.UBLOX] ?: return
-        val source = runtime.source as? UsbSerialSource ?: return
-        if (source.device.deviceName == device.deviceName) source.detached()
-    }
-
     /** u-blox 受信機に接続する。receiverPortChoice は null で自動。 */
     fun connect(candidate: UsbCandidate, baud: Int, receiverPortChoice: String?, autoSetup: Boolean) {
         prefs.baud = baud
         prefs.receiverPort = receiverPortChoice
         prefs.autoSetup = autoSetup
-        UsbDevices.requestPermission(app, candidate.device) { granted ->
-            if (!granted) {
-                _usbMessage.value = app.getString(jp.kjtr.ubloxmonitor.R.string.usb_permission_denied)
-                return@requestPermission
+        // つないでいれば先に止める（UbloxReceiver.connect も前の接続を閉じる。ここでは「切断しました」を出さない）
+        synchronized(runtimes) { if (isRunning(Channel.UBLOX)) stopChannel(Channel.UBLOX, null) }
+        val pipeline = newPipeline(Channel.UBLOX)
+        pipeline.onPvt = { pvt -> if (mock.isActive) mock.publish(pvt) }
+        val options = ConnectOptions(
+            // 世代によって設定の方法が違うので、UbloxReceiver が MON-VER の応答を待ってから送る
+            profile = if (autoSetup) OutputProfile.MONITOR else null,
+            receiverPort = receiverPortChoice,
+            generation = prefs.settingsGen,
+            pipeline = pipeline,
+            title = candidate.label,
+        )
+        receiver.connect(candidate, baud, options) { conn ->
+            if (conn == null) {
+                (receiver.status.value as? ReceiverStatus.Error)?.let { _usbMessage.value = it.message }
+                return@connect
             }
-            val port = candidate.driver.ports.firstOrNull()
-            if (port == null) {
-                _usbMessage.value = app.getString(jp.kjtr.ubloxmonitor.R.string.open_failed, "ポートがありません")
-                return@requestPermission
-            }
-            val pipeline = newPipeline(Channel.UBLOX)
-            val title = candidate.label
-            pipeline.onPvt = { pvt -> if (mock.isActive) mock.publish(pvt) }
-            val source = UsbSerialSource(usbManager, candidate.device, port, baud, pipeline, title)
-            startSource(Channel.UBLOX, pipeline, source)
+            startSource(Channel.UBLOX, pipeline, conn)
             runtimes[Channel.UBLOX]?.let {
-                it.receiverPort = receiverPortChoice ?: candidate.receiverPortGuess
+                it.receiverPort = conn.receiverPort
                 it.deviceName = candidate.device.deviceName
-                // 世代によって設定の方法が違うので、MON-VER の応答を待ってから設定を送る
-                source.send(listOf(Ubx.build(Ubx.MON_VER)))
-                it.pendingSetup = autoSetup
                 it.pendingRead = true
-                it.pendingTicks = 0
                 readStartedAt = 0L
                 awaitingAck = false
                 settingsStatus = "接続すると現在値を読み出します。"
@@ -444,21 +439,19 @@ class MonitorRepository(private val app: Context) {
     fun applySetup() {
         val runtime = runtimes[Channel.UBLOX] ?: return
         if (runtime.ended || !runtime.source.isAlive) return
-        val gen = generation(runtime)
-        runtime.pipeline.log("出力メッセージを設定します（$gen、受信機側 ${runtime.receiverPort}）")
-        runtime.source.send(Link.outputPackets(gen, runtime.receiverPort))
+        receiver.applyProfile(OutputProfile.MONITOR, generation(runtime))
     }
 
-    /** 接続後、世代が分かったら（または 2 秒待っても分からなければ）出力の設定と受信機設定の読み出しをする。 */
+    /**
+     * 接続後、UbloxReceiver が世代を判別して（または 2 秒待っても分からなければ）出力を設定し終えたら、
+     * 受信機設定を読み出す（Python 版と同じ順: 出力の設定 → 読み出し）。
+     */
     private fun updatePending() {
         val runtime = runtimes[Channel.UBLOX] ?: return
-        if (!(runtime.pendingSetup || runtime.pendingRead) || runtime.ended || !runtime.source.isAlive) return
-        runtime.pendingTicks++
-        if (runtime.pipeline.version == null && runtime.pendingTicks < 2000 / REFRESH_MS) return
-        if (runtime.pendingSetup) applySetup()
-        if (runtime.pendingRead) readSettings()
-        runtime.pendingSetup = false
+        if (!runtime.pendingRead || runtime.ended || !runtime.source.isAlive) return
+        if (receiver.status.value !is ReceiverStatus.Connected || receiver.connection !== runtime.source) return
         runtime.pendingRead = false
+        readSettings()
     }
 
     // ---- 受信機設定 ----

@@ -94,7 +94,8 @@ class MonitorService : LifecycleService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return 0
         val repo = (application as UbloxApp).repository
         var types = 0
-        if (repo.isRunning(Channel.UBLOX) || repo.correction.isRunning()) {
+        // u-blox の接続は ublox-android の UbloxReceiver（サービスには依存しない。ここで前面に保つだけ）
+        if (repo.receiver.isConnected || repo.correction.isRunning()) {
             types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
         }
         val locationGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
@@ -109,9 +110,11 @@ class MonitorService : LifecycleService() {
         val lines = ArrayList<String>()
         for (channel in listOf(Channel.UBLOX, Channel.INTERNAL)) {
             if (!repo.isRunning(channel)) continue
-            val pvt = repo.latestPvt(channel)
-            val state = if (pvt == null) getString(R.string.notif_waiting)
-            else getString(R.string.notif_fix, pvt.fixLabel, pvt.numSv)
+            // u-blox は UbloxReceiver の最新の測位（GnssFix）、内蔵 GNSS は集計の NAV-PVT
+            val fix = if (channel == Channel.UBLOX) repo.receiver.latestFix.value?.let { it.fixLabel to it.numSv }
+            else repo.latestPvt(channel)?.let { it.fixLabel to it.numSv }
+            val state = if (fix == null) getString(R.string.notif_waiting)
+            else getString(R.string.notif_fix, fix.first, fix.second)
             val rec = if (repo.recordStatus(channel) != null) getString(R.string.notif_recording) else ""
             lines.add("${getString(channel.labelRes)}: $state$rec")
         }
