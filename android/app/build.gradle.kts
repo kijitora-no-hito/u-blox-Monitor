@@ -24,8 +24,8 @@ android {
         applicationId = "jp.kjtr.ubloxmonitor"
         minSdk = 24
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.4.3"
+        versionCode = 8
+        versionName = "0.4.4"
         vectorDrawables { useSupportLibrary = true }
     }
 
