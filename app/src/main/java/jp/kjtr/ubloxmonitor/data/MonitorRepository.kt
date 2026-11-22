@@ -595,6 +595,21 @@ class MonitorRepository(private val app: Context) {
         correction.setMessage("${item.label} を有効にしました（RAM のみ。電源を切ると戻ります）。")
     }
 
+    // ---- スペクトル・u-blox モニター（3 段目。表示中の画面から読む） ----
+
+    /** そのデータ源の Pipeline（MON-SPAN・GnssState の monitorSnapshot / trendSnapshot を読む）。無ければ null */
+    fun pipeline(channel: Channel): Pipeline? = runtimes[channel]?.pipeline
+
+    /** MON-SPAN を要求できる（u-blox 実機につながっている）か */
+    fun canPollSpectrum(): Boolean = liveUblox() != null
+
+    /** MON-SPAN を要求する（Poll なので受信機の設定は変えない）。送れたら true。 */
+    fun pollSpectrum(): Boolean {
+        val runtime = liveUblox() ?: return false
+        runtime.source.send(listOf(Ubx.build(Ubx.MON_SPAN)))
+        return true
+    }
+
     /** データ源の終了や切断を検出する。 */
     private fun checkSources() {
         var changed = false

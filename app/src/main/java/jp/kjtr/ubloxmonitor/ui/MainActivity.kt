@@ -39,7 +39,9 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -70,8 +72,8 @@ import jp.kjtr.ubloxmonitor.UbloxApp
 import jp.kjtr.ubloxmonitor.data.MonitorRepository
 
 /**
- * 画面は下のナビ（接続 / メイン / 比較 / 地図 / その他）。「その他」から 受信機設定・RTK 補正・記録 に入る。
- * 3 段目（スペクトル・u-blox モニター）は「その他」（[More]）に足す。横向き・タブレット（幅 600dp 以上の横長）は NavigationRail。
+ * 画面は下のナビ（接続 / メイン / 比較 / 地図 / その他）。「その他」から 受信機設定・RTK 補正・スペクトル・u-blox モニター・記録 に入る。
+ * 横向き・タブレット（幅 600dp 以上の横長）は NavigationRail。
  */
 class MainActivity : ComponentActivity() {
     private val repo: MonitorRepository get() = (application as UbloxApp).repository
@@ -122,6 +124,8 @@ private const val TAB_MORE = 4
 private enum class More(val label: Int, val help: Int, val icon: ImageVector) {
     SETTINGS(R.string.nav_settings, R.string.more_settings_help, Icons.Filled.Build),
     CORRECTION(R.string.nav_correction, R.string.more_correction_help, Icons.AutoMirrored.Filled.Send),
+    SPECTRUM(R.string.nav_spectrum, R.string.more_spectrum_help, Icons.Filled.Search),
+    MONITOR(R.string.nav_monitor, R.string.more_monitor_help, Icons.Filled.Star),
     LOGS(R.string.nav_logs, R.string.more_logs_help, Icons.AutoMirrored.Filled.List),
 }
 
@@ -188,6 +192,8 @@ private fun AppRoot(repo: MonitorRepository, startTab: Int) {
                                 when (page) {
                                     More.SETTINGS -> ReceiverSettingsScreen(repo, inner)
                                     More.CORRECTION -> CorrectionScreen(repo, inner)
+                                    More.SPECTRUM -> SpectrumScreen(repo, inner)
+                                    More.MONITOR -> MonitorScreen(repo, inner)
                                     More.LOGS -> LogsScreen(repo, inner, onPlay = { tab = TAB_MAIN })
                                 }
                             }
@@ -212,7 +218,7 @@ private fun MoreScreen(repo: MonitorRepository, padding: PaddingValues, onOpen: 
             val status = when (page) {
                 More.CORRECTION -> if (correction.running) repo.correction.statusLine() else null
                 More.SETTINGS -> if (settings.connected) settings.status else null
-                More.LOGS -> null
+                More.SPECTRUM, More.MONITOR, More.LOGS -> null
             }
             Card(Modifier.fillMaxWidth().clickable { onOpen(page) }) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

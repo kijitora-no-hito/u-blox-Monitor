@@ -36,6 +36,21 @@ class RealSampleTest {
         assertNotNull(pvt.latitude)
         assertTrue(snap.satellites.isNotEmpty())
         assertTrue(snap.satellites.values.count { it.used } > 0)
+        // u-blox モニターの材料（MEASX・SFRBX・RAWX が入っている。MON-SPAN は無い）
+        val monitor = pipeline.state.monitorSnapshot()
+        val tracked = monitor.tracks.values.flatMap { it.values }.filter { MonitorMath.active(it, monitor.now) }
+        assertTrue(tracked.isNotEmpty())
+        assertTrue("MEASX の値がある", tracked.any { e -> MonitorMath.measxValues(e).none { it == "-" } })
+        assertTrue("RAWX の帯域がある", tracked.any { it.signals.isNotEmpty() })
+        assertTrue("SFRBX がある", monitor.sfrbx.values.any { it.isNotEmpty() })
+        val gpsSubframes = monitor.sfrbx.getValue("GPS").values.flatMap { it.subframes }.toSet()
+        assertTrue("GPS L1C/A のサブフレーム番号 $gpsSubframes", gpsSubframes.isNotEmpty() && gpsSubframes.all { it in 1..5 })
+        val trend = pipeline.state.trendSnapshot()
+        val l1 = trend.history.getValue("GPS").values.sumOf { MonitorMath.trendLines(it, "L1", trend.now)[0].size }
+        assertTrue(l1 > 0)
+        val set = SpectrumSet()
+        assertTrue(!set.update(pipeline.spectrum, pipeline.spectrumCount))
+        println("u-blox モニター: 追尾 ${tracked.size} 機、GPS サブフレーム $gpsSubframes、L1 トレンド $l1 点")
         pipeline.version?.let { v ->
             println("MON-VER: ${v.extensions}")
             ReceiverConfig.supportedSystems(v)?.let { assertTrue("X20P は GLONASS 非対応", "GLO" !in it) }

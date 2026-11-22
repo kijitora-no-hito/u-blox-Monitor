@@ -14,6 +14,10 @@
     <string name="back">戻る</string>
     <string name="more_settings_help">測位・追尾・衛星系・信号・RTCM3 入力の読み出しと変更</string>
     <string name="more_correction_help">NTRIP / TCP / USB シリアルの補正情報を受信機へ転送</string>
+    <string name="nav_spectrum">スペクトル</string>
+    <string name="nav_monitor">u-blox モニター</string>
+    <string name="more_spectrum_help">RF のスペクトル（MON-SPAN）。現在値・最大値ホールド・平均、タッチで周波数とレベル</string>
+    <string name="more_monitor_help">信号（RAWX / MEASX）・SFRBX モニター・5 分間のトレンド</string>
     <string name="more_logs_help">記録した UBX ログの再生・共有・削除</string>
 
     <!-- データ源 -->
@@ -244,4 +248,26 @@
     <string name="notif_mock">擬似ロケーションを流しています</string>
     <string name="notif_disconnect">切断</string>
     <string name="notif_correction">RTK 補正: %1$s</string>
+
+    <!-- スペクトル（spectrum_view.py） -->
+    <string name="spectrum_auto">自動更新（1 秒ごとに MON-SPAN を要求）</string>
+    <string name="spectrum_max">最大値ホールド</string>
+    <string name="spectrum_mean">平均</string>
+    <string name="spectrum_clear">クリア</string>
+    <string name="spectrum_legend_current">現在値</string>
+    <string name="spectrum_legend_max">最大値</string>
+    <string name="spectrum_legend_mean">平均</string>
+    <string name="spectrum_legend_marker">信号の中心周波数</string>
+    <string name="spectrum_no_data">スペクトルのデータがありません</string>
+    <string name="spectrum_internal">内蔵 GNSS にはスペクトル（MON-SPAN）がありません。データ源で u-blox か再生を選んでください。</string>
+
+    <!-- u-blox モニター（monitor_view.py） -->
+    <string name="monitor_tab_signal">信号（RAWX / MEASX）</string>
+    <string name="monitor_tab_sfrbx">SFRBX モニター</string>
+    <string name="monitor_tab_trend">トレンド（5 分）</string>
+    <string name="monitor_no_source">データ源がありません。［接続］で u-blox 受信機か内蔵 GNSS を始めるか、記録を再生してください。</string>
+    <string name="monitor_internal_note">内蔵 GNSS には RXM-MEASX・RXM-SFRBX がありません。信号は RAWX の C/N0 と追尾状態だけで（マルチパス・MEASX の値は出ません）、SFRBX モニターは空です。</string>
+    <string name="monitor_signal_help">棒の高さが C/N0、色がマルチパスの指標（灰 0・緑 1・黄 2・赤 3）、上の小さな枠が帯域（L1 / L2 / L5 / L6）ごとの追尾状態（緑の地 = 追尾中、明るい数字 = 搬送波位相が有効）。棒の下は MEASX の wChips・fChips・cPhase・iPhase・RMSE（RMSE が 30 を超えると赤）。衛星系の段は横にスクロールできます。</string>
+    <string name="monitor_sfrbx_help">棒は航法メッセージ（SFRBX）の受信数（100 ごとに繰り返す）。GPS / QZSS の L1C/A は左の 1〜5 に受信したサブフレームの番号を出します。</string>
+    <string name="monitor_trend_help">直近 5 分。各図の 4 段は上から C/N0・マルチパス・RMSE・追尾状態（右端が今）。色は衛星番号ごと。右上で衛星を絞り込めます。</string>
 </resources>
