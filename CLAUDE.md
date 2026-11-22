@@ -8,7 +8,8 @@ STALE_SECONDS、帯域の振り分け、接続時の設定送信など）。共�
 
 - アプリ名: u-blox Monitor / applicationId・namespace・パッケージ: `jp.kjtr.ubloxmonitor`（公開後は変えない）
 - minSdk 24 / compileSdk・targetSdk 36（edge-to-edge 強制。Scaffold は `WindowInsets.safeDrawing`）。縦横どちらも対応（幅 600dp 以上で 2 列）
-- versionCode 3 / versionName 0.3.0（2 段目: 受信機設定・RTK 補正。未公開・配布方法は未定）
+- versionCode 4 / versionName 0.4.0（3 段目: スペクトル・u-blox モニター、受信機まわりのライブラリ化。未公開・配布方法は未定）
+- ライブラリ `:ublox-core` / `:ublox-android` は版 **0.1.0**（groupId `jp.kjtr.ublox`。アプリの版とは別。公開 API・取り込み方は `docs/LIBRARY.md`）
 - 権限: INTERNET・ACCESS_NETWORK_STATE（地図タイルだけ）、FOREGROUND_SERVICE(_CONNECTED_DEVICE / _LOCATION)、POST_NOTIFICATIONS、
   ACCESS_FINE/COARSE_LOCATION（内蔵 GNSS と location 種別のサービス用。接続タブで［内蔵 GNSS を開始］を押したときに実行時に要求）、
   ACCESS_MOCK_LOCATION（擬似ロケーション）
@@ -21,49 +22,72 @@ STALE_SECONDS、帯域の振り分け、接続時の設定送信など）。共�
 
 ## ライブラリ（`gradle/libs.versions.toml`）
 
-AGP 8.7.3 / Kotlin 2.0.21 / Compose BOM 2024.12.01 / lifecycle 2.8.7（runtime-compose・service）/
-usb-serial-for-android 3.8.1（jitpack。`settings.gradle.kts` で `com.github.mik3y` だけ jitpack から）/ osmdroid 6.1.20。
+AGP 8.7.3 / Kotlin 2.0.21（app・ublox-android は kotlin-android、ublox-core は kotlin-jvm）/ Compose BOM 2024.12.01 / lifecycle 2.8.7（runtime-compose・service）/
+usb-serial-for-android 3.8.1（jitpack。`settings.gradle.kts` で `com.github.mik3y` だけ jitpack から。ublox-android の api 依存）/
+kotlinx-coroutines-android 1.7.3（ublox-android）/ osmdroid 6.1.20（app だけ）。
 Gradle Wrapper 8.11.1（gps_camera からコピー）。チャートは自前の Canvas（外部ライブラリなし）。
 
-## 構成
+## 構成（モジュール）
+
+| モジュール | 種類 | パッケージ | 役割 |
+|---|---|---|---|
+| `:ublox-core` | Kotlin/JVM（Android 非依存） | `jp.kjtr.ublox.core` | プロトコル・集計・記録/再生・設定・RTCM・NTRIP・表示の計算 |
+| `:ublox-android` | Android ライブラリ（minSdk 24） | `jp.kjtr.ublox.android` | USB・接続（UbloxReceiver）・内蔵 GNSS・擬似ロケーション・RTK 補正 |
+| `:app` | アプリ | `jp.kjtr.ubloxmonitor` | 画面・データ源の切り替え・受信機設定の状態・記録/再生の管理・フォアグラウンドサービス |
+
+依存は app → ublox-android → ublox-core。ほかのアプリ（自転車ルートロガー・ドライブロガー）から使う前提の部品なので、
+**ライブラリには app の R・BuildConfig・Prefs・サービスを持ち込まない**（必要なものは引数・インタフェースで渡す）。
 
 ```
+ublox-core/src/main/kotlin/jp/kjtr/ublox/core/
+├── Ubx.kt               ← ubx.py  分離（UbxStream）・デコード・build/checksum・VALGET/VALSET・NAV5・RATE・CFG-MSG・MON-SPAN・utcMillis
+├── LeBytes.kt           LeReader / LeWriter（struct の代わり。内蔵 GNSS の UBX 合成にも使う）
+├── GnssState.kt         ← state.py  集計（snapshot / monitorSnapshot / trendSnapshot）
+├── Pipeline.kt          ← serial_link.py  Pipeline（addPvtListener・addRawListener）・UbxLogger・Link.outputPackets・ReplayClock・ReplayRunner
+├── Receiver.kt          （PC 版になし）GnssFix（NAV-PVT を測位 1 回の値に）・OutputProfile（Monitor / Logger）・DynModel
+├── ReceiverConfig.kt    ← settings.py の GUI 以外（受信機設定。MON-VER の衛星系から非対応の判定 supportedSystems / unsupportedItems）
+├── Spectrum.kt          ← spectrum_view.py の集計（SpectrumTrace・SpectrumSet・niceTicks・BAND_MARKERS・状態の文言）
+├── MonitorMath.kt       ← monitor_view.py の計算（systemOffset・bandStatus・trendLines・SLOT・MEASX_FIELDS）
+├── ChartMath.kt         ← charts.py の nice_step・time_unit・pvt_series、map_view.py の thin
+├── PhoneUbx.kt          （PC 版になし）内蔵 GNSS の値（PhoneFix / PhoneSat / PhoneClock / PhoneMeas）→ NAV-PVT・NAV-SAT・RXM-RAWX
+├── Compare.kt           （PC 版になし）比較画面の集計（両者の値・位置の差・共通衛星の C/N0・差の履歴）
+├── Rtcm.kt              ← rtcm.py  RTCM3 の分離（RtcmStream・CRC-24Q）・メッセージ名・1005/1006・ECEF⇔緯度経度・基線長・GGA
+└── Ntrip.kt             ← rtcm.py  NTRIP の要求・応答ヘッダ・chunked・ソーステーブル・CorrectionClient（受信スレッド・自動再接続）・SocketLink
+ublox-core/src/test/…    UbloxMonitorTest（tests/test_ublox_monitor.py の移植 + 追加）、RealSampleTest、PhoneUbxTest、RtcmTest、FakeCasterTest、
+                         ReceiverTest（GnssFix・OutputProfile・リスナー）・SupportedSystemsTest（MON-VER の衛星系）、MonitorViewTest（スペクトル・u-blox モニターの計算）
+ublox-core/src/testFixtures/…  UbxSamples（tests/ubx_samples.py ＋ replay）。app のテストからも使う（公開はしない）
+
+ublox-android/src/main/java/jp/kjtr/ublox/android/
+├── UbloxReceiver.kt     入口: devices・requestPermission・connect（許可→開く→MON-VER を待って OutputProfile を送る）・disconnect・
+│                        status（ReceiverStatus）・fixes / latestFix（GnssFix）・rawBytes / addRawListener・send・applyProfile・startRecording。
+│                        UbloxConnection（1 回の接続。Source でもある）・ConnectOptions。USB 抜け（DETACHED）もここで受ける
+├── AndroidLocation.kt   GnssFix.toAndroidLocation（extras に fixType・numSV・carrSoln など。UbloxExtras）
+├── Source.kt            Source インタフェース（UsbSerialSource・InternalGnssSource・UbloxConnection・アプリの ReplaySource）
+├── UsbDevices.kt        機器の列挙・ドライバ判定（既定 prober → u-blox の ProbeTable → VID 0x1546 は CDC-ACM）・USB 権限（action は <パッケージ名>.UBLOX_USB_PERMISSION）
+├── UsbSerialSource.kt   ← SerialSource（読み取り専用スレッド、16 KB バッファ、送信キューは 1 ループ 4 パケット）
+├── InternalGnssSource.kt  内蔵 GNSS（Location / GnssStatus / GnssMeasurementsEvent を詰め替えて PhoneUbx に渡すだけ）。文言は res の ublox_internal_*
+├── MockLocation.kt      擬似ロケーション（addTestProvider で GPS / NETWORK。publish は toAndroidLocation を使う）
+├── CorrectionManager.kt RTK 補正（CorrectionClient の開始/停止・u-blox への転送・GGA・ソーステーブル）。保存先は CorrectionStore、サービスの起動は onStarted
+├── CorrectionStore.kt   CorrectionForm・CorrectionStore・SharedPrefsCorrectionStore（corr_* のキー。アプリは settings.xml を渡す）
+├── SecretStore.kt       NTRIP のパスワードの暗号化保存（Android Keystore AES/GCM、correction_secret.xml）
+└── UsbCorrectionLink.kt RTK 補正の受信元の USB シリアル（u-blox とは別の機器）
+ublox-android/src/main/res/  xml/device_filter.xml（アプリの Manifest が参照）、values/strings.xml（ublox_ で始める）
+
 app/src/main/java/jp/kjtr/ubloxmonitor/
 ├── UbloxApp.kt              Application。osmdroid の設定（UA = applicationId、キャッシュは cacheDir）と MonitorRepository
-├── domain/                  純ロジック（Android 依存なし・単体テストあり）
-│   ├── Ubx.kt               ← ubx.py  分離（UbxStream）・デコード・build/checksum・VALGET/VALSET・NAV5・RATE・CFG-MSG・MON-SPAN
-│   ├── LeBytes.kt           LeReader / LeWriter（struct の代わり。内蔵 GNSS の UBX 合成にも使う）
-│   ├── GnssState.kt         ← state.py  集計（snapshot / monitorSnapshot / trendSnapshot）
-│   ├── Pipeline.kt          ← serial_link.py  Pipeline・UbxLogger・outputPackets・ReplayClock・ReplayRunner（再生の時計の進め方）
-│   ├── PhoneUbx.kt          （PC 版になし）内蔵 GNSS の値（PhoneFix / PhoneSat / PhoneClock / PhoneMeas）→ NAV-PVT・NAV-SAT・RXM-RAWX
-│   ├── Compare.kt           （PC 版になし）比較画面の集計（両者の値・位置の差・共通衛星の C/N0・差の履歴）
-│   ├── ReceiverConfig.kt    ← settings.py の GUI 以外（受信機設定タブ）
-│   ├── Rtcm.kt              ← rtcm.py  RTCM3 の分離（RtcmStream・CRC-24Q）・メッセージ名・1005/1006・ECEF⇔緯度経度・基線長・GGA
-│   ├── Ntrip.kt             ← rtcm.py  NTRIP の要求・応答ヘッダ（ICY / HTTP・401/404）・chunked・ソーステーブル・
-│   │                          CorrectionClient（受信スレッド・自動再接続）・CorrectionLink / SocketLink（java.net、TLS）
-│   └── Display.kt           ← app.py の status_text など・charts.py の pvt_series / nice_step・map_view.py の thin
+├── domain/Display.kt        ← app.py の status_text など（画面の文字列・色。グラフの計算は ublox-core の ChartMath）
 ├── data/
-│   ├── MonitorRepository.kt データ源ごとの Pipeline（Channel）・接続・接続時の設定と受信機設定の読み出し・受信機設定の送信と ACK/NAK・
-│   │                        RTCM3 入力の有効化・記録・再生・擬似ロケーション・画面用スナップショット
-│   ├── CorrectionManager.kt RTK 補正（CorrectionClient の開始/停止・u-blox への転送・GGA・ソーステーブル・入力の保存）
-│   ├── SecretStore.kt       NTRIP のパスワードの暗号化保存（Android Keystore AES/GCM、correction_secret.xml）
-│   ├── source/Source.kt     Source インタフェースと Channel（UBLOX / INTERNAL / REPLAY）
-│   ├── source/UsbSerialSource.kt  ← SerialSource（読み取り専用スレッド、16 KB バッファ）
-│   ├── source/ReplaySource.kt     ← ReplaySource
-│   ├── source/UsbCorrectionLink.kt  RTK 補正の受信元の USB シリアル（u-blox とは別の機器。Python 版のシリアルポート）
-│   ├── source/InternalGnssSource.kt  内蔵 GNSS（Location / GnssStatus / GnssMeasurementsEvent を詰め替えて PhoneUbx に渡すだけ）
-│   ├── UsbDevices.kt        機器の列挙・ドライバ判定（既定 prober → u-blox の ProbeTable → VID 0x1546 は CDC-ACM）・USB 権限
-│   ├── MockLocation.kt      擬似ロケーション（addTestProvider で GPS / NETWORK）
-│   └── Prefs.kt             SharedPreferences
-├── service/MonitorService.kt   フォアグラウンドサービス（connectedDevice / location）。通知に測位状態・補正の受信状態と「切断」
+│   ├── MonitorRepository.kt データ源ごとの Pipeline（Channel）・UbloxReceiver での接続・受信機設定の読み出し/送信と ACK/NAK・
+│   │                        RTCM3 入力の有効化・記録・再生・擬似ロケーション・画面用スナップショット・MON-SPAN の poll
+│   ├── Prefs.kt             SharedPreferences（settings.xml。RTK 補正の入力は correctionStore）
+│   └── source/              Channel（UBLOX / INTERNAL / REPLAY）・ReplaySource
+├── service/MonitorService.kt   フォアグラウンドサービス（connectedDevice / location）。u-blox は repo.receiver（isConnected・latestFix）を見る
 └── ui/                      MainActivity（下のナビ: 接続 / メイン / 比較 / 地図 / その他。横長 600dp 以上は NavigationRail）、
-                             「その他」→ ReceiverSettingsScreen・CorrectionScreen・LogsScreen、ConnectScreen、MainScreen、CompareScreen、
-                             MapScreen、Charts、Common
+                             「その他」→ ReceiverSettingsScreen・CorrectionScreen・SpectrumScreen・MonitorScreen・LogsScreen、ConnectScreen、MainScreen、
+                             CompareScreen、MapScreen、Charts、Common
+app/src/test/…               DisplayTest（画面の文字列）
 tools/fake_caster.py         確認用の偽 NTRIP キャスター（標準ライブラリだけ。下の「ビルド・確認」）
-app/src/test/.../domain/     UbloxMonitorTest（tests/test_ublox_monitor.py の移植 + 追加）、UbxSamples（tests/ubx_samples.py）、RealSampleTest、
-                             PhoneUbxTest（合成した UBX を Ubx.parse* と Pipeline に通す往復テスト・比較・表示の修正）、
-                             RtcmTest（tests/test_rtcm.py の移植。偽キャスターはバイト列の ScriptLink。再接続・401/404・chunked の追加）、
-                             FakeCasterTest（tools/fake_caster.py との実ソケットの疎通。環境変数 FAKE_CASTER が無ければ skip）
+docs/LIBRARY.md              ライブラリの構成・公開 API・ロガーでの使い方・取り込み方の 3 案
 ```
 
 ## 移植元との対応・意図的に変えた点
@@ -76,9 +100,12 @@ app/src/test/.../domain/     UbloxMonitorTest（tests/test_ublox_monitor.py の�
 | 地図（Leaflet + OSM） | 地図タブ（osmdroid + 地理院タイル 標準/淡色/写真） | 全データ源の軌跡を色分けで重ねる（u-blox 青・内蔵 赤・再生 紫）。印の中は測位状態の色 |
 | 再生中は実機に接続できない | 再生は別の Channel | 実機と再生を同時に動かせる |
 | 接続後に受信機設定を読み出す（read_settings） | 同じ | MON-VER（または 2 秒）を待ってから。「接続時に設定」がオフでも読み出す（Python 版と同じ） |
-| タブ（メイン / 地図 / RTK 補正 / スペクトル / 受信機設定 / u-blox モニター） | 下のナビ 5 個 + 「その他」 | 接続 / メイン / 比較 / 地図 / その他。受信機設定・RTK 補正・記録は「その他」から（3 段目のスペクトル・u-blox モニターも「その他」に足す）。横長は NavigationRail |
+| タブ（メイン / 地図 / RTK 補正 / スペクトル / 受信機設定 / u-blox モニター） | 下のナビ 5 個 + 「その他」 | 接続 / メイン / 比較 / 地図 / その他。受信機設定・RTK 補正・スペクトル・u-blox モニター・記録は「その他」から。横長は NavigationRail |
 | 受信機設定タブ | 受信機設定（その他） | 項目・確認の文言・ACK/NAK の表示は同じ。VALGET に返ってこない項目は応答がそろったら（または 5 秒で）「—（非対応）」。数値は入力欄（範囲外は送信できない）。未接続・再生中は「受信機につないでいません」で操作できない |
-| 受信機設定の世代・保存先 | 同じ | 選んだ世代・保存先を保存して次回も使う（PC 版は毎回 自動判別 / RAM のみ） |
+| 受信機設定: 値の有無で対応を判断 | MON-VER の衛星系の行も見る | **PC 版にない**（0.4.0）。拡張（`GPS;GAL;BDS`・`SBAS;QZSS`・`NAVIC`）に無い衛星系とその信号は「—（非対応）」で操作不可（X20P は GLONASS のキーに 0 を返し NAK にならないため）。行が無い古いファームウェアは PC 版と同じ |
+| 受信機設定の世代・保存先 | 同じ | 選んだ世代・保存先を保存して次回も使う（PC 版は毎回 自動判別 / RAM のみ）。保存先の表示名は「RAM のみ」「RAM + BBR + Flash」で、説明は下の行（360dp で切れたため） |
+| スペクトルタブ | スペクトル（その他） | 項目・文言・目印・1 秒の poll・応答なしの判定（3 回）は同じ。マウスオーバーの代わりにタッチ／横ドラッグでカーソル（離しても残る）。見出しはグラフの上の行、横軸の目盛りは幅に合わせて 3〜8。データ源はメインと同じ選択（内蔵は「MON-SPAN がありません」） |
+| u-blox モニタータブ | u-blox モニター（その他） | 図の座標・色・項目は同じ。横長（600dp 以上の横向き）は PC 版の 2 段の配置を縮小。縦画面は衛星系ごとの段（使っている枠だけ）を横スクロール、トレンドは帯域のチップで 1 つずつ（4 段の名前は図の中）。信号・SFRBX は 0.5 秒、トレンドは 1 秒ごと（PC 版は 0.25 / 1 秒）。内蔵 GNSS は MEASX・SFRBX が無い旨を出す |
 | RTK 補正: シリアルポート（無線機など） | USB シリアル | u-blox をつないでいる機器とは別の USB 機器（候補から u-blox の機器を除く）。開くたびに deviceName で探し直す |
 | RTK 補正: 切れたら止まる | 自動で再接続 | **PC 版にない**。つながらない・相手が切った・30 秒データが来ない → 2→4→8…最大 60 秒で再接続（停止まで）。10 秒以上受信できていた接続が切れたら 2 秒から。401・403・404・ソーステーブルが返った（マウントポイント無し）は再接続しない |
 | RTK 補正: 401 は「キャスターの応答: …401…」 | 「認証に失敗しました（ユーザー名・パスワードを確認してください）: …」 | 403・404 も文言を足した（どれも 1 行目をそのまま後ろに付ける） |
@@ -95,8 +122,21 @@ app/src/test/.../domain/     UbloxMonitorTest（tests/test_ublox_monitor.py の�
 
 ## 決まりごと
 
-- **domain は Android に依存させない**。Python 版を直したら同じ箇所をここも直し、テストもそろえる。
-- 集計は Channel ごとに 1 つ。新しいデータ源は `Source` を実装して `MonitorRepository.startSource(channel, pipeline, source)` から入れる。
+- **ublox-core は Android に依存させない**（java.time も使わない。minSdk 24 で無いため。暦は自前の `Ubx.utcMillis`）。
+  Python 版を直したら同じ箇所をここも直し、テストもそろえる。
+- **ライブラリ（ublox-core / ublox-android）は他のアプリからも使う**: app の R・BuildConfig・Prefs・MonitorService を参照しない。
+  公開 API を変えたら `docs/LIBRARY.md` と版（各 build.gradle.kts の `version`、今は 0.1.0）を直し、`.\gradlew.bat publishToMavenLocal` が通ることを確かめる。
+  ライブラリの Manifest は権限を宣言しない（使う側が宣言する）。ライブラリの文言リソースは `ublox_` で始める。
+- **u-blox の接続は UbloxReceiver に任せる**: 許可・開く・MON-VER を待って（2 秒で打ち切り）OutputProfile を送る・USB 抜けで閉じる。
+  アプリは `ConnectOptions(profile = MONITOR（接続時に設定 OFF なら null）, generation = Prefs.settingsGen, pipeline = 自分の Pipeline)` で呼び、
+  返った `UbloxConnection` を Channel.UBLOX の Source にする。受信機設定の読み出しは `status` が Connected になってから（出力の設定の後。Python 版と同じ順）。
+  `UbloxConnection.stop()` はその接続だけを閉じる（つなぎ直した新しい接続は閉じない）。
+- 出力プロファイルはどちらも RAM のみ・1 キー 1 パケット。`OutputProfile.Logger` は NAV-PVT 毎エポック・NAV-SAT 1 Hz・RAWX/SFRBX/MEASX を 0・
+  CFG-RATE-MEAS/NAV・DYNMODEL（M8 は CFG-MSG・CFG-RATE・CFG-NAV5）。**companion の RATES は LOGGER より先に初期化**（逆にすると Logger の init で落ちる）。
+- 集計は Channel ごとに 1 つ。新しいデータ源は `Source`（ublox-android）を実装して `MonitorRepository.startSource(channel, pipeline, source)` から入れる。
+- **スペクトル・u-blox モニター（0.4.0）**: 画面が出ている間だけ LaunchedEffect で `repo.pipeline(channel)` を読む（Python 版の「表示中のタブだけ更新」）。
+  MON-SPAN の poll は u-blox が選ばれていて［自動更新］のときだけ 1 秒ごと（`repo.pollSpectrum`。受信機の設定は変えない）。
+  集計（SpectrumSet）は画面が持ち、Pipeline が作り直されたら消す。図の論理座標は PC 版のまま（`MonitorMath`）、縦画面は 1 論理 px = 0.85 dp。
 - **内蔵 GNSS（0.2.0）**: `InternalGnssSource` は Android の値を domain のデータクラスに詰め替えるだけ。合成は `PhoneUbx`（NAV-PVT・NAV-SAT）と
   `PhoneRawx`（RXM-RAWX。locktime・clkReset の状態を持つのでデータ源ごとに 1 つ）で、`Channel.INTERNAL` の Pipeline.feed に流す。
   記録も同じバイト列（接頭辞 `internal_`）なので、再生・PC 版・RTKLIB convbin で読める。コールバックは専用の HandlerThread で受ける。
@@ -128,7 +168,7 @@ app/src/test/.../domain/     UbloxMonitorTest（tests/test_ublox_monitor.py の�
   書くのは u-blox の読み取りスレッド（読み取りと書き込みが競合しない。1 ループ 4 パケットまで）。**内蔵 GNSS には転送しない**。
   GGA は u-blox の NAV-PVT から（`Rtcm.buildGga`。位置が無ければ送らずに次のループで再試行）。
   通信路は `CorrectionLink`（NTRIP / TCP は `SocketLink`、TLS は Android の既定の HostnameVerifier で確かめる。シリアルは `UsbCorrectionLink`）。
-  入力は `Prefs.loadCorrectionForm / saveCorrectionForm`（変更の 0.5 秒後に保存。パスワードは入れない）、パスワードは `SecretStore`。
+  入力は `Prefs.correctionStore`（ublox-android の SharedPrefsCorrectionStore）（変更の 0.5 秒後に保存。パスワードは入れない）、パスワードは `SecretStore`。
   受信中はサービスを保つ（`keepsService`）。種別は connectedDevice（u-blox 未接続で NTRIP だけのときは USB の許可が無く前面に出られないことがある。未確認）。
 
 ## 段階計画
@@ -140,17 +180,21 @@ app/src/test/.../domain/     UbloxMonitorTest（tests/test_ublox_monitor.py の�
 2. **2 段目（0.3.0、済）**: 受信機設定（接続時の現在値の読み出し、変更の送信と ACK/NAK、保存先 RAM / BBR+Flash、世代の手動選択）、
    RTK 補正（NTRIP 1.0/2.0・TLS・ソーステーブル、TCP、USB シリアル、GGA 送信、受信機へ転送、RTCM3 入力の有効化、自動再接続、
    パスワードの暗号化保存、フォアグラウンドサービスでの受信）、下のナビを 5 個 + 「その他」に。偽 NTRIP キャスター `tools/fake_caster.py`
-3. **3 段目**（「その他」に足す）: スペクトル（MON-SPAN の poll、現在値・最大値ホールド・平均。`spectrum_view.py`）、u-blox モニター（信号 RAWX/MEASX、SFRBX、5 分トレンド。
-   `monitor_view.py`。集計は `GnssState.monitorSnapshot / trendSnapshot` で用意済み）
+3. **3 段目（0.4.0、済）**: スペクトル（MON-SPAN の poll、現在値・最大値ホールド・平均、タッチで読む）、u-blox モニター（信号 RAWX/MEASX、SFRBX、5 分トレンド）。
+   受信機まわりのライブラリ化（`:ublox-core` / `:ublox-android` 0.1.0、UbloxReceiver・GnssFix・OutputProfile.LOGGER、maven-publish、`docs/LIBRARY.md`）。
+   受信機設定の修正（MON-VER の衛星系で非対応を判定、保存先の表示）
+4. **次の候補**: 自転車ルートロガー・ドライブロガーへの取り込み（取り込み方は未定。`docs/LIBRARY.md` の 3 案）
 
 ## ビルド・確認
 
 ```powershell
 $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
-.\gradlew.bat test assembleDebug lintDebug
+.\gradlew.bat test assembleDebug lintDebug     # 3 モジュールとも（ublox-core は test だけ）
+.\gradlew.bat publishToMavenLocal              # ライブラリを ~/.m2 の jp.kjtr.ublox:ublox-core / ublox-android:0.1.0 に
 ```
 
-- `RealSampleTest` は実機（ZED-X20P、HPG 2.00、PROTVER 50.02、FTDI FT230X 経由 UART1、921600 bps）の 30 秒ログを読む。
+- `RealSampleTest`（ublox-core）は実機（ZED-X20P、HPG 2.00、PROTVER 50.02、FTDI FT230X 経由 UART1、921600 bps）の 30 秒ログを読む
+  （MEASX・SFRBX・RAWX あり、MON-SPAN・MON-VER なし。u-blox モニターの材料もここで確かめる）。
   **位置が入っているのでログはリポジトリに入れない**。環境変数 `UBX_SAMPLE` か既定のパスに無ければ skip する。
 - 実機の出力は 1 Hz で約 30 種類の UBX と NMEA（約 23 KB/秒、最大フレーム 5540 バイト）。未知のクラス・NMEA は集計では読み飛ばし、記録にはそのまま残る。
 
@@ -182,6 +226,16 @@ python tools\fake_caster.py --port 2101 --drop-after 15 # 15 秒ごとに切る�
 - 比較タブ: u-blox と内蔵を同時に動かしたときの位置の差・方位、共通衛星の C/N0 の棒
 - 受信機設定（X20P）: 接続時に全項目が読めるか（VALGET 約 40 回）、GLONASS など非対応のキーが「—（非対応）」になるか、
   変更の送信で ACK が出て読み直されるか、BBR+Flash に保存して電源を入れ直しても残るか、衛星系の変更での再捕捉
+- ライブラリ化（0.4.0）: 接続→MON-VER→出力の設定→受信機設定の読み出しの順・時間が 0.3.0 と同じか、USB を抜いたときに
+  「通信が切れました: USB が外れました」になり記録・擬似ロケーションが止まるか、つないだまま［接続］し直したとき、許可ダイアログで拒否したときの文言、
+  USB 権限の action 名が変わった（`jp.kjtr.ubloxmonitor.UBLOX_USB_PERMISSION`）ので許可ダイアログの結果が届くか、通知の u-blox の行（latestFix）
+- 受信機設定（0.4.0、X20P）: GLONASS と GLONASS L1/L2 が「—（非対応）」で押せないか、QZSS L1C/B（NAK）が出ないままか、NavIC は出るか。
+  幅 360dp の縦画面で保存先が「RAM + BBR + Flash」まで読めるか
+- スペクトル（X20P）: 3 ブロック（1586.000 / 1191.938 / 1254.906 MHz、span 128 MHz、res 500 kHz、PGA 5/5/3 dB）が縦に並ぶか、1 秒ごとに更新されるか、
+  タッチ・横ドラッグでカーソルが出て縦スクロールと取り合わないか、目印の文字の重なり、最大値・平均・クリア、画面を離れたら poll が止まるか
+  （ログで MON-SPAN の数が増えなくなる）、MON-SPAN を含む記録の再生
+- u-blox モニター（X20P）: 縦画面の横スクロールと文字の大きさ（0.85 dp/px）、横向き・タブレットの PC 版の配置、トレンドの絞り込み、内蔵 GNSS のときの表示、
+  BeiDou の 24 枠を超える衛星（表示枠が無ければ出ない。PC 版と同じ）
 - RTK 補正（X20P + 有料の補正サービス）: NTRIP 2.0 / 1.0 / TLS で 200 が返るか、ソーステーブルの取得、VRS で GGA を送って配信が始まるか、
   ［受信機の RTCM3 入力を有効にする］（UART1）のあと NAV-PVT が DGNSS → RTK Float → Fixed になるか、補正経過時間・基線長、
   921600 bps の UBX 受信中に RTCM を書いてもチェックサムエラーが増えないか、モバイル回線の切り替わり（Wi-Fi ⇔ LTE）で自動再接続するか、
