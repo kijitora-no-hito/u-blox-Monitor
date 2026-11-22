@@ -1,4 +1,4 @@
-# u-blox-Monitor **Version:** Windows 版 0.3.0 / Android 版 0.4.4(プレビュー)
+# u-blox-Monitor **Version:** Windows 版 0.3.0 / Android 版 0.5.0(プレビュー)
 **Author:** Rei Furukawa (kijitora-no-hito)
 
 u-blox 受信機(M8 / F9 / X20 シリーズ)用の記録・表示・設定・解析ツールです。Windows 版は Python、Android 版は Kotlin で実装しています。
@@ -13,7 +13,7 @@ RAW データ(MEASX、SFRBX、RAWX など)を記録して、受信機の性能�
 | 対象 | ファイル | 説明 |
 |---|---|---|
 | Windows | [ublox_monitor_Setup_0.3.0.exe](https://github.com/kijitora-no-hito/u-blox-Monitor/releases/download/v0.3.0/ublox_monitor_Setup_0.3.0.exe) | インストーラ。下の「使い方」を参照 |
-| Android 7.0 以降 | [ublox_monitor_android_0.4.4.apk](https://github.com/kijitora-no-hito/u-blox-Monitor/releases/download/android-v0.4.4/ublox_monitor_android_0.4.4.apk) | プレビュー版。下の「[Android 版](#android-版)」を参照 |
+| Android 7.0 以降 | [ublox_monitor_android_0.5.0.apk](https://github.com/kijitora-no-hito/u-blox-Monitor/releases/download/android-v0.5.0/ublox_monitor_android_0.5.0.apk) | プレビュー版。下の「[Android 版](#android-版)」を参照 |
 
 過去の版は [Releases](https://github.com/kijitora-no-hito/u-blox-Monitor/releases) にあります。
 
@@ -215,7 +215,7 @@ M8 は UBX-CFG-NAV5 / CFG-RATE で読み書きします。M8 では衛星系と�
 1. 上の「ダウンロード」から `ublox_monitor_android_<バージョン>.apk` をスマートフォンでダウンロードする。
 2. ファイルを開き、「提供元不明のアプリ」のインストールを許可してインストールする。
 
-APK の SHA-256(0.4.4): `93aa812f5a968bfb16c38298e2e4b7c738c94faa72a2f146d4ee35ba7eeb2743`
+APK の SHA-256(0.5.0): `7f22ae2454407c07b62bb225caa5973ffc65bd08ba506c50f1ff0a8938ced125`
 
 更新は自動では入りません。0.5.0 からは、新しい版が公開されるとメイン画面の上にお知らせが出ます(「その他」→「このアプリについて」で OFF にできます)。新しい版の APK を同じ手順で上書きインストールしてください(記録は残ります)。
 
