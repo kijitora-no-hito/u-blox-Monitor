@@ -208,7 +208,7 @@ python tools\fake_caster.py --port 2101 --drop-after 15 # 15 秒ごとに切る�
 - マウントポイント TOKYO / OSAKA / VRS（VRS は GGA の送信が必要と表に書いてある）。認証はユーザー `test` / パスワード `test`（違えば 401）
 - NTRIP 1.0 は `ICY 200 OK`、要求に `Ntrip-Version: Ntrip/2.0` があれば `HTTP/1.1 200` + chunked。無いマウントポイントは 1.0 ならソーステーブル、2.0 なら 404
 - 1 秒ごとに 1005（ID 1234、東京付近）と中身がダミーの 1074 / 1084 / 1094 / 1124（CRC は正しい）。受け取った GGA は標準出力に出す
-- エミュレータからはホスト `10.0.2.2`、ポート 2101。JVM からの疎通: `$env:FAKE_CASTER="127.0.0.1:2101"; .\gradlew.bat testDebugUnitTest --tests "*FakeCasterTest*"`
+- エミュレータからはホスト `10.0.2.2`、ポート 2101。JVM からの疎通: `$env:FAKE_CASTER="127.0.0.1:2101"; .\gradlew.bat :ublox-core:test --tests "*FakeCasterTest*"`
 - ダミーの MSM なので受信機は RTK にならない（受信量・メッセージ番号・基準局・基線長・再接続の確認用）
 
 ## 未確認事項（実機で見ること）
