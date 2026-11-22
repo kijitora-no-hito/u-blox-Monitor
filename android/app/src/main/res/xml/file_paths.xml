@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 記録した .ubx を共有するための FileProvider（getExternalFilesDir("logs")）。 -->
+<paths>
+    <external-files-path name="logs" path="logs/" />
+    <files-path name="logs_internal" path="logs/" />
+</paths>

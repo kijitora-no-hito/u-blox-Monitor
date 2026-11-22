@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ublox-android の文言（使う側のアプリと名前がぶつからないよう ublox_ で始める）。 -->
+<resources>
+    <string name="ublox_internal_no_permission">正確な位置情報（ACCESS_FINE_LOCATION）が許可されていません。</string>
+    <string name="ublox_internal_started">内蔵 GNSS を開始しました</string>
+    <string name="ublox_internal_provider_off">端末の位置情報（GPS）がオフです。設定でオンにしてください。</string>
+    <string name="ublox_internal_mock">擬似ロケーション中のため内蔵の位置は使えません（衛星・生の測定値は出します）</string>
+    <string name="ublox_internal_waiting_fix">内蔵の位置を待っています</string>
+    <string name="ublox_internal_meas_unsupported">この端末は GNSS の生の測定値に対応していません（RXM-RAWX なし。NAV-PVT・NAV-SAT だけ出します）</string>
+    <string name="ublox_internal_meas_not_allowed">生の測定値の取得が許可されていません（RXM-RAWX なし）</string>
+    <string name="ublox_internal_meas_waiting">生の測定値（RXM-RAWX）を待っています</string>
+    <string name="ublox_internal_meas_no_clock">生の測定値は届いていますが RXM-RAWX はまだ出していません（%1$s）</string>
+    <string name="ublox_internal_meas_full">生の測定値: RXM-RAWX %1$d 回（完全な追跡を要求中）</string>
+    <string name="ublox_internal_meas_ok">生の測定値: RXM-RAWX %1$d 回</string>
+    <string name="ublox_internal_full_tracking_hint">Android 11 以前: 開発者オプションの「GNSS 測定の完全な追跡を強制」を ON にすると測定値が間引かれません。</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 以前のバックアップ（allowBackup="false" なので通常は使われない）。パスワードの暗号化値は外す。 -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="correction_secret.xml" />
+    <exclude domain="sharedpref" path="settings.xml" />
+</full-backup-content>

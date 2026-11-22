@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 以降のバックアップ・機種変更の転送（allowBackup="false" でも端末間の転送は行われるため明示する）。
+  NTRIP のパスワードの暗号化値（correction_secret.xml）は必ず外す。鍵は Android Keystore にあり端末の外に出ないので、
+  移しても読めない（読めない値は捨てる）。ほかの設定も外してある（バックアップはしない方針）。
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="correction_secret.xml" />
+        <exclude domain="sharedpref" path="settings.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="correction_secret.xml" />
+        <exclude domain="sharedpref" path="settings.xml" />
+    </device-transfer>
+</data-extraction-rules>
