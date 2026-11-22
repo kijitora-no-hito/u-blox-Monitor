@@ -14,7 +14,7 @@ STALE_SECONDS、帯域の振り分け、接続時の設定送信など）。共�
   正本は `d:\work\ublox_monitor\android`（`d:\work\android\ublox_monitor` はそこを指すジャンクションの予定）。git 操作は `d:\work\ublox_monitor` で行う。
   APK はそのリポジトリの Releases に `android-v<版>` のタグで（Windows 版は `v<版>`。Windows 版を Latest のままにするため Android 版は prerelease）。
   ファイル名は `ublox_monitor_android_<版>.apk`。README の「ダウンロード」の表とリンク・SHA-256 を版ごとに直す。**公開リポジトリなので位置入りのログ・スクリーンショットを入れない**
-- ライブラリ `:ublox-core` / `:ublox-android` は版 **0.2.0**（groupId `jp.kjtr.ublox`。アプリの版とは別。0.2.0 = `OutputProfile.Logger(keepRaw)`。公開 API・取り込み方は `docs/LIBRARY.md`。自転車ルートロガー 0.13.0 が composite build（無ければ mavenLocal）で使っている）
+- ライブラリ `:ublox-core` / `:ublox-android` は版 **0.3.0**（groupId `jp.kjtr.ublox`。アプリの版とは別。0.2.0 = `OutputProfile.Logger(keepRaw)`、0.3.0 = `UbloxReceiver.enableRtcmInput`・`ReceiverConfig.rtcmInputPacket`・`GnssFix.correctionAgeText`（RTK 補正をロガーからも使うため。app の enableRtcmInput も rtcmInputPacket を使う）。公開 API・取り込み方は `docs/LIBRARY.md`。自転車ルートロガー 0.13.0 が composite build（無ければ mavenLocal）で使っている）
 - 権限: INTERNET・ACCESS_NETWORK_STATE（地図タイルだけ）、FOREGROUND_SERVICE(_CONNECTED_DEVICE / _LOCATION)、POST_NOTIFICATIONS、
   ACCESS_FINE/COARSE_LOCATION（内蔵 GNSS と location 種別のサービス用。接続タブで［内蔵 GNSS を開始］を押したときに実行時に要求）、
   ACCESS_MOCK_LOCATION（擬似ロケーション）
@@ -131,7 +131,7 @@ docs/LIBRARY.md              ライブラリの構成・公開 API・ロガー�
 - **ublox-core は Android に依存させない**（java.time も使わない。minSdk 24 で無いため。暦は自前の `Ubx.utcMillis`）。
   Python 版を直したら同じ箇所をここも直し、テストもそろえる。
 - **ライブラリ（ublox-core / ublox-android）は他のアプリからも使う**: app の R・BuildConfig・Prefs・MonitorService を参照しない。
-  公開 API を変えたら `docs/LIBRARY.md` と版（各 build.gradle.kts の `version`、今は 0.2.0）を直し、`.\gradlew.bat publishToMavenLocal` が通ることを確かめる。
+  公開 API を変えたら `docs/LIBRARY.md` と版（各 build.gradle.kts の `version`、今は 0.3.0）を直し、`.\gradlew.bat publishToMavenLocal` が通ることを確かめる。
   ライブラリの Manifest は権限を宣言しない（使う側が宣言する）。ライブラリの文言リソースは `ublox_` で始める。
 - **u-blox の接続は UbloxReceiver に任せる**: 許可・開く・MON-VER を待って（2 秒で打ち切り）OutputProfile を送る・USB 抜けで閉じる。
   アプリは `ConnectOptions(profile = MONITOR（接続時に設定 OFF なら null）, generation = Prefs.settingsGen, pipeline = 自分の Pipeline)` で呼び、
@@ -196,7 +196,7 @@ docs/LIBRARY.md              ライブラリの構成・公開 API・ロガー�
 ```powershell
 $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat test assembleDebug lintDebug     # 3 モジュールとも（ublox-core は test だけ）
-.\gradlew.bat publishToMavenLocal              # ライブラリを ~/.m2 の jp.kjtr.ublox:ublox-core / ublox-android:0.2.0 に
+.\gradlew.bat publishToMavenLocal              # ライブラリを ~/.m2 の jp.kjtr.ublox:ublox-core / ublox-android:0.3.0 に
 ```
 
 - `RealSampleTest`（ublox-core）は実機（ZED-X20P、HPG 2.00、PROTVER 50.02、FTDI FT230X 経由 UART1、921600 bps）の 30 秒ログを読む

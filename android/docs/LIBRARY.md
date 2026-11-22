@@ -1,8 +1,8 @@
 # 受信機ライブラリ（ublox-core / ublox-android）
 
 u-blox Monitor（`jp.kjtr.ubloxmonitor`）の受信機まわりを、ほかのアプリ（自転車ルートロガー `cycle_route_logger`・
-ドライブロガー `drive_logger` など）からも使えるように 2 つのモジュールに分けたもの。版はライブラリとして **0.2.0**
-（アプリの版とは別。0.2.0 = `OutputProfile.Logger` に `keepRaw`）、groupId は `jp.kjtr.ublox`。
+ドライブロガー `drive_logger` など）からも使えるように 2 つのモジュールに分けたもの。版はライブラリとして **0.3.0**
+（アプリの版とは別。0.2.0 = `OutputProfile.Logger` に `keepRaw`、0.3.0 = `UbloxReceiver.enableRtcmInput`・`ReceiverConfig.rtcmInputPacket`・`GnssFix.correctionAgeText`）、groupId は `jp.kjtr.ublox`。
 
 | モジュール | 種類 | パッケージ / namespace | 中身 |
 |---|---|---|---|
@@ -39,6 +39,7 @@ class UbloxReceiver(context: Context, scope: CoroutineScope = CoroutineScope(Sup
     fun applyProfile(profile: OutputProfile, generation: String? = null): Boolean
     fun addRawListener(l: (ByteArray, Int, Int) -> Unit) / removeRawListener(l)      // 受信スレッドから。取りこぼさない
     fun startRecording(folder: File, prefix: String = "ublox"): LogStatus?          // そのまま .ubx（上書きしない）
+    fun enableRtcmInput(generation: String? = null): RtcmInputResult              // 0.3.0〜 受信機側のポートで RTCM3 入力を ON（RAM のみ。M8 は不可）
     fun stopRecording() / recordStatus(): LogStatus?
 }
 
@@ -56,6 +57,9 @@ object UbloxExtras { FIX_TYPE = "fixType"; NUM_SV = "numSV"; CARR_SOLN = "carrSo
 class InternalGnssSource(context, pipeline, title) : Source   // 内蔵 GNSS → NAV-PVT・NAV-SAT・RXM-RAWX（要 ACCESS_FINE_LOCATION）
 class MockLocation(context) { enable(); disable(); publish(fix: GnssFix); publish(pvt: Pvt) }   // 要 ACCESS_MOCK_LOCATION
 class CorrectionManager(context, store: CorrectionStore, scope, userAgent, forward, roverPvt, ubloxConnected, log, onStarted)
+    // form / updateForm / start / stop / isRunning / fetchMounts / mounts / view / message / publish / statusLine。パスワードは［保存する］のときだけ SecretStore
+class SharedPrefsCorrectionStore(sp: SharedPreferences) : CorrectionStore   // corr_* のキー（パスワードは入れない）
+class SecretStore(context)   // Keystore の AES/GCM。保存先 correction_secret.xml（使う側でバックアップ・転送から外す）
 object UsbDevices { list(context); candidate(device); findDriver(device); requestPermission(context, device, onResult) }
 ```
 
@@ -68,7 +72,7 @@ elapsedRealtimeNanos = 受け取った時刻、extras に fixType・numSV（"sat
 ```kotlin
 data class GnssFix(fixType, fixRank, gnssFixOk, carrSoln, diffSoln, numSv, latitude, longitude, height, heightMsl,
                    hAcc, vAcc, speed, speedAcc, heading, headingAcc, pdop, itow, utcMillis, correctionAge,
-                   receivedAtMillis, receivedElapsedNanos) { fixLabel; hasPosition; time }
+                   receivedAtMillis, receivedElapsedNanos) { fixLabel; hasPosition; time; correctionAgeText（0.3.0） }
 
 sealed class OutputProfile {
     data object Monitor                                        // NAV-PVT・NAV-SAT・RXM-RAWX・RXM-SFRBX・RXM-MEASX を毎エポック（u-blox Monitor）
@@ -95,6 +99,24 @@ enum class DynModel(value, label) { PORTABLE(0) STATIONARY(2) PEDESTRIAN(3) AUTO
 - 1 キー 1 パケット（受信機が対応しないキー・値があっても、その 1 つが NAK になるだけ）。Unknown の世代は F9 / M8 の両方の方式で送る。
 - ロガーには `DynModel.BIKE`（自転車）・`AUTOMOTIVE`（車）。Bike・E-scooter は古いファームウェアでは NAK のことがある（`Pipeline.acks` / ログで分かる）。
 - 10 Hz は NAV-PVT だけで約 1 KB/秒。UART 経由（FTDI など）は 115200 bps 以上に。NMEA など他の出力は変えない（必要なら受信機設定で止める）。
+
+### RTK 補正（NTRIP）をロガーで使う（自転車ルートロガー 0.13.0 の例）
+
+```kotlin
+val corr = CorrectionManager(
+    context, SharedPrefsCorrectionStore(context.getSharedPreferences("ntrip", MODE_PRIVATE)), scope,
+    userAgent = "NTRIP CycleRouteLogger/0.13.0",
+    forward = { ublox.send(it) },                         // 受信機へ（内蔵 GNSS には送らない）
+    roverPvt = { ublox.pipeline?.state?.pvt },            // GGA・基線長
+    ubloxConnected = { ublox.isConnected },
+    log = { Log.i("ntrip", it) },
+)
+// 受信機がつながった・設定で ON → corr.start()、外れた・OFF → corr.stop()。0.5〜1 秒ごとに corr.publish() で view を更新
+ublox.enableRtcmInput().message   // 「RTCM3 入力（UART1） を有効にしました（RAM のみ…）」
+```
+
+- 使う側の Manifest に INTERNET。`correction_secret.xml`（SecretStore）と入力の SharedPreferences はバックアップ・端末間の転送から外す。
+- `CorrectionManager.start()` の onStarted は前面からの開始を想定（u-blox Monitor は FGS を起動）。ロガーは記録サービスがもう動いているので空でよい。
 
 ## ロガーアプリでの使い方の例
 
@@ -208,11 +230,11 @@ if (useUbloxSource) {
 （usb-serial-for-android は Maven Central に無い）。
 
 ```powershell
-# 確認済み（2026-11-22、0.2.0）
+# 確認済み（2026-11-22、0.3.0）
 $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 cd d:\work\ublox_monitor\android
 .\gradlew.bat publishToMavenLocal
-# → ~/.m2/repository/jp/kjtr/ublox/ublox-core/0.2.0（jar・sources・pom・module）、ublox-android/0.2.0（aar・sources・pom・module）
+# → ~/.m2/repository/jp/kjtr/ublox/ublox-core/0.3.0（jar・sources・pom・module）、ublox-android/0.3.0（aar・sources・pom・module）
 ```
 
-ライブラリの版（0.2.0）は `ublox-core/build.gradle.kts`・`ublox-android/build.gradle.kts` の `version`。公開 API を変えたら上げる。
+ライブラリの版（0.3.0）は `ublox-core/build.gradle.kts`・`ublox-android/build.gradle.kts` の `version`。公開 API を変えたら上げる。

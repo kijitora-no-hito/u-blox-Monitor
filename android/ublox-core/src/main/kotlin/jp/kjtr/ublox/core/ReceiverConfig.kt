@@ -125,6 +125,19 @@ object ReceiverConfig {
     /** 設定キーで読み書きする世代か。 */
     fun usesKeys(gen: String) = gen != "M8"
 
+    /** 受信機側のポート receiverPort（USB / UART1 / UART2）の RTCM3 入力の項目（無いポートなら null）。 */
+    fun rtcmInputItem(receiverPort: String): ConfigItem? = RTCM3_INPUT[receiverPort]?.let { ITEM_BY_IDENT[it] }
+
+    /**
+     * 受信機側のポートで RTCM3 の入力を受け付ける設定（CFG-VALSET の RAM のみ。Python 版 enable_rtcm_input）。
+     * M8 世代（設定キーが無い）・知らないポートは null（0.3.0）。
+     */
+    fun rtcmInputPacket(gen: String, receiverPort: String): ByteArray? {
+        if (!usesKeys(gen)) return null
+        val item = rtcmInputItem(receiverPort) ?: return null
+        return Ubx.buildValset(mapOf(item.key to 1L))
+    }
+
     /**
      * 現在の設定を読み出すパケットを返す。
      * 設定キーは 1 つずつ問い合わせる（未対応のキーが混ざると要求全体が NAK になるため）。

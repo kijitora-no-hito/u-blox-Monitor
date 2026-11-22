@@ -50,6 +50,9 @@ data class GnssFix(
     /** 位置があるか */
     val hasPosition: Boolean get() = latitude != null && longitude != null
 
+    /** 補正情報の経過時間の表示（「1 秒未満」「2〜5 秒」など。NAV-PVT の lastCorrectionAge。補正を使っていなければ null。0.3.0） */
+    val correctionAgeText: String? get() = Ubx.CORRECTION_AGES[correctionAge]
+
     /** 記録に使う時刻。受信機の UTC が有効ならそれ、無ければ受け取った時刻。 */
     val time: Long get() = utcMillis ?: receivedAtMillis
 

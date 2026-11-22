@@ -16,6 +16,7 @@ import jp.kjtr.ublox.core.MonVer
 import jp.kjtr.ublox.core.OutputProfile
 import jp.kjtr.ublox.core.Pipeline
 import jp.kjtr.ublox.core.Pvt
+import jp.kjtr.ublox.core.ReceiverConfig
 import jp.kjtr.ublox.core.Ubx
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +37,9 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.coroutines.resume
+
+/** [UbloxReceiver.enableRtcmInput] の結果。message は画面にそのまま出せる日本語。 */
+data class RtcmInputResult(val ok: Boolean, val message: String)
 
 /** 受信機の接続の状態。 */
 sealed interface ReceiverStatus {
@@ -356,6 +360,23 @@ class UbloxReceiver(
         }
         conn.send(profile.packets(gen, conn.receiverPort))
         return true
+    }
+
+    /**
+     * 今の接続の受信機側のポートで RTCM3 の入力を受け付けるよう設定する（RAM のみ。電源を切ると戻る。0.3.0）。
+     * generation は null なら接続の世代。結果は画面にそのまま出せる日本語の 1 行。
+     */
+    fun enableRtcmInput(generation: String? = null): RtcmInputResult {
+        val conn = connection?.takeIf { it.isAlive } ?: return RtcmInputResult(false, "受信機に接続してから押してください。")
+        val gen = generation ?: conn.generation
+        val item = ReceiverConfig.rtcmInputItem(conn.receiverPort)
+        val packet = ReceiverConfig.rtcmInputPacket(gen, conn.receiverPort)
+        if (item == null || packet == null) {
+            return RtcmInputResult(false, if (!ReceiverConfig.usesKeys(gen)) "M8 世代の RTCM 入力の設定には対応していません。" else "受信機側のポート（${conn.receiverPort}）が分かりません。")
+        }
+        conn.send(listOf(packet))
+        conn.pipeline.log("${item.label} を有効にしました（RAM）")
+        return RtcmInputResult(true, "${item.label} を有効にしました（RAM のみ。電源を切ると戻ります）。")
     }
 
     // ---- 受信データ ----

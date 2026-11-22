@@ -589,8 +589,9 @@ class MonitorRepository(private val app: Context) {
             correction.setMessage("M8 世代の RTCM 入力の設定には対応していません。")
             return
         }
-        val item = ReceiverConfig.ITEM_BY_IDENT.getValue(ReceiverConfig.RTCM3_INPUT.getValue(runtime.receiverPort))
-        runtime.source.send(listOf(Ubx.buildValset(mapOf(item.key to 1L))))
+        val item = ReceiverConfig.rtcmInputItem(runtime.receiverPort) ?: return
+        val packet = ReceiverConfig.rtcmInputPacket(generation(runtime), runtime.receiverPort) ?: return
+        runtime.source.send(listOf(packet))
         runtime.pipeline.log("${item.label} を有効にしました（RAM）")
         correction.setMessage("${item.label} を有効にしました（RAM のみ。電源を切ると戻ります）。")
     }

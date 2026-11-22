@@ -117,6 +117,29 @@ class ReceiverTest {
         assertTrue(OutputProfile.Logger(keepRaw = true).label.contains("RAWX"))
     }
 
+    @Test
+    fun rtcmInputPacketIsRamValsetOnThePort() {
+        val f = UbxStream().feed(ReceiverConfig.rtcmInputPacket("X20", "UART1")!!).single()
+        assertEquals(Ubx.CFG_VALSET, f.msg)
+        assertEquals(Ubx.LAYER_RAM, f.payload[1].toInt())
+        assertEquals("01", hex(Ubx.parseValget(f.payload).getValue(0x10730004L)))   // CFG-UART1INPROT-RTCM3X
+        val usb = UbxStream().feed(ReceiverConfig.rtcmInputPacket("F9", "USB")!!).single()
+        assertEquals(setOf(0x10770004L), Ubx.parseValget(usb.payload).keys)
+        assertEquals("RTCM3 入力（USB）", ReceiverConfig.rtcmInputItem("USB")!!.label)
+        // M8 は設定キーが無い・知らないポートは作らない
+        assertNull(ReceiverConfig.rtcmInputPacket("M8", "USB"))
+        assertNull(ReceiverConfig.rtcmInputPacket("F9", "SPI"))
+    }
+
+    @Test
+    fun correctionAgeTextOnlyWhenCorrected() {
+        val payload = UbxStream().feed(UbxSamples.navPvt(0, 35.5, 139.25)).single().payload
+        val fix = GnssFix.from(Ubx.parseNavPvt(payload)!!)
+        assertEquals(null, fix.copy(correctionAge = 0).correctionAgeText)
+        assertEquals("1 秒未満", fix.copy(correctionAge = 1).correctionAgeText)
+        assertEquals("2〜5 秒", fix.copy(correctionAge = 3).correctionAgeText)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun loggerRateMustBeSupported() {
         OutputProfile.Logger(rateHz = 3)
