@@ -1,12 +1,21 @@
-# u-blox-Monitor **Version:** 0.3.0
+# u-blox-Monitor **Version:** Windows 版 0.3.0 / Android 版 0.4.2(プレビュー)
 **Author:** Rei Furukawa (kijitora-no-hito)
 
-u-blox 受信機(M8 / F9 / X20 シリーズ)用の記録・表示・設定・解析ツールです。Python で実装しています。
+u-blox 受信機(M8 / F9 / X20 シリーズ)用の記録・表示・設定・解析ツールです。Windows 版は Python、Android 版は Kotlin で実装しています。
 測位状態や衛星の受信状況、地図上の軌跡、RF のスペクトルを表示し、受信機の設定を変更できます。
 NTRIP などで受けた RTCM 補正情報を受信機へ送り、RTK 測位ができます。
 RAW データ(MEASX、SFRBX、RAWX など)を記録して、受信機の性能をグラフで解析できます。
 
 ![メイン画面](docs/images/main.png)
+
+## ダウンロード
+
+| 対象 | ファイル | 説明 |
+|---|---|---|
+| Windows | [ublox_monitor_Setup_0.3.0.exe](https://github.com/kijitora-no-hito/u-blox-Monitor/releases/download/v0.3.0/ublox_monitor_Setup_0.3.0.exe) | インストーラ。下の「使い方」を参照 |
+| Android 7.0 以降 | [ublox_monitor_android_0.4.2.apk](https://github.com/kijitora-no-hito/u-blox-Monitor/releases/download/android-v0.4.2/ublox_monitor_android_0.4.2.apk) | プレビュー版(実機での確認が済んでいません)。下の「[Android 版](#android-版)」を参照 |
+
+過去の版は [Releases](https://github.com/kijitora-no-hito/u-blox-Monitor/releases) にあります。
 
 **ライセンス**
 [MIT ライセンス](LICENSE)で公開しています。
@@ -187,6 +196,64 @@ M8 は UBX-CFG-NAV5 / CFG-RATE で読み書きします。M8 では衛星系と�
 | `ublox_monitor/app.py` | メインウィンドウ |
 
 テストは `python -m pytest tests` で実行します。
+
+---
+
+## Android 版
+
+スマートフォンに USB(Type-C の OTG ケーブルなど)で u-blox 受信機をつないで、Windows 版とほぼ同じ表示・設定・記録ができるアプリです。ソースは [`android/`](android/) にあります。
+
+> **プレビュー版です。** エミュレータと記録済みデータの再生でしか確認していません。実機の受信機での動作(USB の受信、受信機設定、RTK 補正、擬似ロケーション)は未確認です。
+
+### 必要なもの
+
+- Android 7.0(API 24)以降で、USB ホスト(OTG)に対応したスマートフォン・タブレット
+- u-blox 受信機。u-blox の USB ポートのほか、USB シリアル変換(FTDI、CP210x、CH34x、PL2303)経由の UART でもつなげます
+
+### インストール
+
+1. 上の「ダウンロード」から `ublox_monitor_android_<バージョン>.apk` をスマートフォンでダウンロードする。
+2. ファイルを開き、「提供元不明のアプリ」のインストールを許可してインストールする。
+
+APK の SHA-256(0.4.2): `275878335a47a47b1b5aa07be2df5dc3463f2994215356e25d716cc338cde947`
+
+更新は自動では届きません。新しい版の APK を同じ手順で上書きインストールしてください(記録は残ります)。
+
+### 画面
+
+下のナビの **接続 / メイン / 比較 / 地図 / その他** で切り替えます。「その他」から受信機設定・RTK 補正・スペクトル・u-blox モニター・記録・このアプリについて を開きます。
+
+| 画面 | 内容 |
+|---|---|
+| **接続** | USB の受信機(ボーレート、接続時に出力メッセージを設定)、内蔵 GNSS、記録、擬似ロケーション |
+| **メイン** | Windows 版のメインと同じ。データ源(u-blox / 内蔵 GNSS / 再生)を切り替えて表示 |
+| **比較** | u-blox(または再生)とスマートフォン内蔵の GNSS の位置の差・精度・共通衛星の C/N0 |
+| **地図** | 国土地理院の地図タイル(標準・淡色・写真)に、データ源ごとの軌跡を色分けして表示 |
+| **その他** | 受信機設定、RTK 補正、スペクトル、u-blox モニター、記録(再生・共有・削除) |
+
+### Windows 版との違い
+
+- **内蔵 GNSS**: スマートフォン内蔵の GNSS の測位・衛星・生の測定値を UBX(NAV-PVT、NAV-SAT、RXM-RAWX)に変換して表示・記録します。記録した `internal_*.ubx` は Windows 版の再生や RTKLIB で読めることを想定しています(未確認)。精度・PDOP などの一部の値は推定・近似です。
+- **擬似ロケーション**: u-blox の位置を Android の位置情報として他のアプリに渡します。開発者オプションの「仮の現在地情報アプリを選択」でこのアプリを選んでください。
+- **地図**: OpenStreetMap ではなく国土地理院のタイルを使います。
+- **RTK 補正**: 切断されると自動で再接続します。パスワードは「パスワードを保存する」をオンにしたときだけ、端末内で暗号化して保存します。
+- 記録は端末内のアプリ専用フォルダに保存し、「記録」画面から共有(ファイルの書き出し)できます。
+
+### 通信と権限
+
+- 通信するのは、地図を表示したとき(国土地理院のタイル)と RTK 補正を使ったとき(入力した NTRIP キャスターなど。GGA を送る設定のときは現在位置も送ります)だけです。
+- 権限: USB、位置情報(内蔵 GNSS を使うときだけ要求)、通知(接続中の表示)、フォアグラウンドサービス、擬似ロケーション、インターネット。
+
+### ソースからビルドする場合
+
+Android Studio(JDK 17)で `android/` を開くか、次を実行します。
+
+```
+cd android
+.\gradlew.bat assembleDebug
+```
+
+受信機まわり(`ublox-core`、`ublox-android`)はライブラリに分けてあり、他のアプリからも使えます。詳しくは [`android/docs/LIBRARY.md`](android/docs/LIBRARY.md) を参照してください。
 
 ---
 
