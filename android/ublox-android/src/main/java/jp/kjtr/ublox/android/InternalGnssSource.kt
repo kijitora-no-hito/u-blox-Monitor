@@ -63,6 +63,11 @@ class InternalGnssSource(
     @Volatile
     private var lastMockAt = 0L
     @Volatile
+    private var lastRawxAt = 0L
+    /** 直近の GnssStatus（NAV-SAT は NAV-PVT / RXM-RAWX の epoch に合わせて出す） */
+    @Volatile
+    private var latestSats: List<PhoneSat>? = null
+    @Volatile
     private var lastFixAt = 0L
     @Volatile
     private var providerEnabled = true
@@ -185,7 +190,18 @@ class InternalGnssSource(
             bearingAccuracy = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasBearingAccuracy())
                 location.bearingAccuracyDegrees.toDouble() else null,
         )
-        pipeline.feed(PhoneUbx.navPvt(fix, usedCount, leapSecond ?: PhoneUbx.DEFAULT_LEAP_SECONDS))
+        val leap = leapSecond ?: PhoneUbx.DEFAULT_LEAP_SECONDS
+        pipeline.feed(PhoneUbx.navPvt(fix, usedCount, leap))
+        // NAV-SAT は同じ epoch（NAV-PVT と同じ iTOW）で続けて出す。端末の時計の iTOW だと u-center が
+        // 別の epoch とみなし、衛星の履歴が 1 回おきに抜けた（Pixel 10 Pro の記録で約 1.6 秒先だった）
+        sendSats(PhoneUbx.itow(fix.utcMillis, leap))
+    }
+
+    /** 直近の GnssStatus を、指定の epoch の NAV-SAT として出す。 */
+    private fun sendSats(itow: Long) {
+        val sats = latestSats ?: return
+        lastSatSent = SystemClock.elapsedRealtime()
+        pipeline.feed(PhoneUbx.navSat(itow, sats))
     }
 
     private fun onStatus(status: GnssStatus) {
@@ -205,12 +221,13 @@ class InternalGnssSource(
             )
         }
         usedCount = PhoneUbx.usedCount(sats)
-        // 周波数ごと・機種によっては 1 秒に何度も来るので、NAV-SAT は 1 Hz 程度に間引く
+        latestSats = sats
+        // NAV-SAT はふだん NAV-PVT（位置が無ければ RXM-RAWX）と同じ epoch で出す。
+        // どちらも来ていないとき（測位前・生の測定値に非対応）だけ、端末の時計の iTOW で 1 Hz 程度に間引いて出す
         val now = SystemClock.elapsedRealtime()
+        if (now - lastFixAt < EPOCH_HOLD_MS || now - lastRawxAt < EPOCH_HOLD_MS) return
         if (now - lastSatSent < SAT_INTERVAL_MS) return
-        lastSatSent = now
-        val itow = PhoneUbx.itow(System.currentTimeMillis(), leapSecond ?: PhoneUbx.DEFAULT_LEAP_SECONDS)
-        pipeline.feed(PhoneUbx.navSat(itow, sats))
+        sendSats(PhoneUbx.itow(System.currentTimeMillis(), leapSecond ?: PhoneUbx.DEFAULT_LEAP_SECONDS))
     }
 
     private fun onMeasurements(event: GnssMeasurementsEvent) {
@@ -247,6 +264,13 @@ class InternalGnssSource(
         val packet = rawx.encode(clock, meas) ?: return
         rawxSent++
         pipeline.feed(packet)
+        val now = SystemClock.elapsedRealtime()
+        lastRawxAt = now
+        // 位置がまだ無いときは、NAV-SAT を RAWX と同じ epoch（rcvTow）で出す
+        if (now - lastFixAt >= EPOCH_HOLD_MS) {
+            val rcvTow = java.nio.ByteBuffer.wrap(packet, 6, 8).order(java.nio.ByteOrder.LITTLE_ENDIAN).double
+            sendSats(Math.round(rcvTow * 1000.0))
+        }
     }
 
     override val statusText: String
@@ -274,6 +298,8 @@ class InternalGnssSource(
     private companion object {
         const val LOCATION_INTERVAL_MS = 1000L
         const val SAT_INTERVAL_MS = 900L
+        /** NAV-PVT / RXM-RAWX がこの時間内に来ていれば、NAV-SAT はその epoch に合わせる */
+        const val EPOCH_HOLD_MS = 2500L
         /** 擬似位置を捨ててからこの間は「擬似ロケーション中」と出す */
         const val MOCK_HOLD_MS = 5000L
         // GnssMeasurementsEvent.Callback の STATUS_*（API 31 で非推奨になったので値で持つ）
