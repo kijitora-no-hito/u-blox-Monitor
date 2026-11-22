@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   u-blox Monitor（jp.kjtr.ubloxmonitor）。
-  通信: 地図タブで［地図を表示］を押したときだけ国土地理院の地図タイルを取得する。
+  通信: 地図タブで［地図を表示］を押したときだけ国土地理院の地図タイル（Google の地図を選んだときは Google のタイル）を取得する。
+  更新の確認（既定 ON・「このアプリについて」で OFF にできる）: 起動時に 12 時間に 1 回まで api.github.com のリリース一覧を読む。
   RTK 補正タブで［補正情報の受信を開始］・［一覧を取得］を押したときだけ、利用者が入れた NTRIP キャスター / TCP サーバに接続する。
   それ以外はインターネットに出ない。
   USB: u-blox 受信機（内蔵 USB / FTDI・CP210x・CH34x・PL2303 経由）を USB ホストでつなぐ。
@@ -37,6 +38,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.UbloxMonitor">
+
+        <!-- Google Maps の API キー。local.properties の MAPS_API_KEY（git 管理外）を入れる。無ければプレースホルダ（Google の地図は選べない） -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
 
         <activity
             android:name=".ui.MainActivity"

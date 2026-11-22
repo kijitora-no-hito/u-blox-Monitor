@@ -1,8 +1,8 @@
 # 受信機ライブラリ（ublox-core / ublox-android）
 
 u-blox Monitor（`jp.kjtr.ubloxmonitor`）の受信機まわりを、ほかのアプリ（自転車ルートロガー `cycle_route_logger`・
-ドライブロガー `drive_logger` など）からも使えるように 2 つのモジュールに分けたもの。版はライブラリとして **0.3.0**
-（アプリの版とは別。0.2.0 = `OutputProfile.Logger` に `keepRaw`、0.3.0 = `UbloxReceiver.enableRtcmInput`・`ReceiverConfig.rtcmInputPacket`・`GnssFix.correctionAgeText`）、groupId は `jp.kjtr.ublox`。
+ドライブロガー `drive_logger` など）からも使えるように 2 つのモジュールに分けたもの。版はライブラリとして **0.4.0**
+（アプリの版とは別。0.2.0 = `OutputProfile.Logger` に `keepRaw`、0.3.0 = `UbloxReceiver.enableRtcmInput`・`ReceiverConfig.rtcmInputPacket`・`GnssFix.correctionAgeText`、0.4.0 = ublox-core に 2 本のログを GPS 時刻で合わせて再生する `ReplayMerge.kt`（下の「再生（0.4.0）」。追加だけで既存の API は変えていない））、groupId は `jp.kjtr.ublox`。
 
 | モジュール | 種類 | パッケージ / namespace | 中身 |
 |---|---|---|---|
@@ -117,6 +117,21 @@ ublox.enableRtcmInput().message   // 「RTCM3 入力（UART1） を有効にし�
 
 - 使う側の Manifest に INTERNET。`correction_secret.xml`（SecretStore）と入力の SharedPreferences はバックアップ・端末間の転送から外す。
 - `CorrectionManager.start()` の onStarted は前面からの開始を想定（u-blox Monitor は FGS を起動）。ロガーは記録サービスがもう動いているので空でよい。
+
+### 再生（0.4.0、ublox-core の `ReplayMerge.kt`）
+
+```kotlin
+GpsTime.resolve(tow, approx) / GpsTime.fromUtcMillis(utcMillis)   // 週内秒 → GPS 時刻（いちばん近い週）
+UbxSegmentReader(input).next(): Segment?      // エポック（NAV-PVT iTOW / RXM-RAWX rcvTow の時刻）ごとの区切り。UBX 以外のバイトもそのまま入る。
+                                               // rel = 週の巻き戻りを展開した週内秒、offset = 本当の GPS 時刻との差（RAWX の week か PVT の UTC から。無ければ null）
+UbxTimeRange.of(head, tail): TimeRange?       // ファイルの先頭・末尾（PROBE_BYTES）から GPS 時刻の範囲
+LogPairing.best(base, candidates)             // いちばん長く重なる記録
+MergedReplayRunner(listOf(ReplayInput(pipeline, input, size), …), speed, clock, startAt)
+    .run() / pause() / resume() / speed = … / seekForward(sec) / stop()   // 1〜2 本を GPS 時刻の順に流す。elapsed・positions・aligned
+```
+
+- 本当の時刻が無いログ（UTC 無効の NAV-PVT だけ）は、もう 1 本の最初の時刻にいちばん近い週に置く（`aligned = false`）。
+- 従来の `ReplayRunner` はそのまま（1 本・一時停止なし）。
 
 ## ロガーアプリでの使い方の例
 
@@ -234,7 +249,7 @@ if (useUbloxSource) {
 $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 cd d:\work\ublox_monitor\android
 .\gradlew.bat publishToMavenLocal
-# → ~/.m2/repository/jp/kjtr/ublox/ublox-core/0.3.0（jar・sources・pom・module）、ublox-android/0.3.0（aar・sources・pom・module）
+# → ~/.m2/repository/jp/kjtr/ublox/ublox-core/0.4.0（jar・sources・pom・module）、ublox-android/0.4.0（aar・sources・pom・module）
 ```
 
-ライブラリの版（0.3.0）は `ublox-core/build.gradle.kts`・`ublox-android/build.gradle.kts` の `version`。公開 API を変えたら上げる。
+ライブラリの版（0.4.0）は `ublox-core/build.gradle.kts`・`ublox-android/build.gradle.kts` の `version`。公開 API を変えたら上げる。

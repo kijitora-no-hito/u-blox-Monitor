@@ -31,13 +31,13 @@
     <string name="about_license">MIT License\nCopyright (c) 2026 Rei Furukawa (kijitora-no-hito)</string>
     <string name="about_trademark">u-blox は u-blox AG の商標です。このアプリは u-blox AG とは関係のない個人の作品です。</string>
     <string name="about_oss_title">使っているソフトウェア</string>
-    <string name="about_oss">usb-serial-for-android（MIT License）\nosmdroid（Apache License 2.0）\nAndroidX・Jetpack Compose・Kotlin・kotlinx.coroutines（Apache License 2.0）</string>
+    <string name="about_oss">usb-serial-for-android（MIT License）\nosmdroid（Apache License 2.0）\nmaps-compose・maps-compose-widgets（Apache License 2.0）\nGoogle Play 開発者サービス（Maps SDK for Android。Google の利用規約）\nAndroidX・Jetpack Compose・Kotlin・kotlinx.coroutines（Apache License 2.0）</string>
     <string name="about_apache_link">Apache License 2.0 の全文</string>
     <string name="about_apache_url" translatable="false">https://www.apache.org/licenses/LICENSE-2.0</string>
     <string name="about_data_title">地図の出典</string>
-    <string name="about_data">地図タイル: 出典：国土地理院（地理院タイル 標準地図・淡色地図・写真）</string>
+    <string name="about_data">地図タイル: 出典：国土地理院（地理院タイル 標準地図・淡色地図・写真）\nGoogle の地図（Google 標準・航空写真）: © Google（地図の中に Google のロゴ・著作権表示が出ます）</string>
     <string name="about_privacy_title">通信について</string>
-    <string name="about_privacy">地図を表示したときに国土地理院のタイルを取得し、RTK 補正を使ったときに入力した NTRIP キャスターなどに接続します（GGA を送る設定のときは現在位置も送ります）。それ以外の通信はしません。記録は端末の中だけに保存します。</string>
+    <string name="about_privacy">地図を表示したときに国土地理院のタイル（Google の地図を選んだときは Google のタイル）を取得し、RTK 補正を使ったときに入力した NTRIP キャスターなどに接続します（GGA を送る設定のときは現在位置も送ります）。更新の確認が ON（既定）のときは、起動時に 12 時間に 1 回まで GitHub（api.github.com）のリリース一覧を読みます（上の「更新の確認」で OFF にできます）。それ以外の通信はしません。記録は端末の中だけに保存します。</string>
 
     <!-- データ源 -->
     <string name="source_ublox">u-blox</string>
@@ -153,14 +153,20 @@
 
     <!-- 地図 -->
     <string name="map_show">地図を表示（国土地理院に接続）</string>
+    <string name="map_show_google">地図を表示（Google に接続）</string>
     <string name="map_close">地図を閉じる</string>
     <string name="map_follow">現在位置に追従</string>
     <string name="map_type_std">標準地図</string>
     <string name="map_type_pale">淡色地図</string>
     <string name="map_type_photo">写真</string>
-    <string name="map_notice">［地図を表示］を押すと、地図タイル（国土地理院 cyberjapandata.gsi.go.jp）をインターネットから取得します。表示している場所の概略が地図サーバに伝わります。［地図を閉じる］で接続を止めます。</string>
+    <string name="map_type_g_normal">Google 標準</string>
+    <string name="map_type_g_satellite">Google 航空写真</string>
+    <string name="map_type_g_hybrid">Google 航空写真+ラベル</string>
+    <string name="map_notice">［地図を表示］を押すと、地図タイル（国土地理院 cyberjapandata.gsi.go.jp）をインターネットから取得します。表示している場所の概略が地図サーバに伝わります。一度表示すると、［地図を閉じる］を押すまでタブを切り替えても・起動し直しても表示したままです。［地図を閉じる］で接続を止めます。</string>
+    <string name="map_notice_google">「Google 標準」「Google 航空写真」を選んだときは、地図タイルを Google（Google Maps SDK for Android）から取得します（Google のプライバシーポリシーが適用されます）。z21 前後まで拡大でき、RTK の cm 単位のばらつきを見るのに向いています。</string>
     <string name="map_position">現在位置: %1$.7f°, %2$.7f°（軌跡 %3$d 点）</string>
     <string name="attribution">出典：国土地理院</string>
+    <string name="map_accuracy">水平精度 %1$s・直近 %2$d 点のばらつき %3$s（最大 %4$s）</string>
 
     <!-- 記録・再生 -->
     <string name="replay_title">UBX 再生</string>
@@ -294,4 +300,52 @@
     <string name="monitor_signal_help">棒の高さが C/N0、色がマルチパスの指標（灰 0・緑 1・黄 2・赤 3）、上の小さな枠が帯域（L1 / L2 / L5 / L6）ごとの追尾状態（緑の地 = 追尾中、明るい数字 = 搬送波位相が有効）。棒の下は MEASX の wChips・fChips・cPhase・iPhase・RMSE（RMSE が 30 を超えると赤）。衛星系の段は横にスクロールできます。</string>
     <string name="monitor_sfrbx_help">棒は航法メッセージ（SFRBX）の受信数（100 ごとに繰り返す）。GPS / QZSS の L1C/A は左の 1〜5 に受信したサブフレームの番号を出します。</string>
     <string name="monitor_trend_help">直近 5 分。各図の 4 段は上から C/N0・マルチパス・RMSE・追尾状態（右端が今）。色は衛星番号ごと。右端の数字は各段の上端・下端の値。右上で衛星を絞り込めます。</string>
+    <!-- 更新の確認（0.5.0） -->
+    <string name="update_title">更新の確認</string>
+    <string name="update_check">新しい版を確認する</string>
+    <string name="update_check_desc">GitHub（api.github.com）から公開のリリース一覧を読み、新しい Android 版があればメイン画面でお知らせします（起動時、12 時間に 1 回まで）。送るのは通常の通信の情報だけで、記録・位置は送りません。OFF の間は一切通信しません。</string>
+    <string name="update_now">今すぐ確認</string>
+    <string name="update_page">リリースのページを開く</string>
+    <string name="update_status_off">確認しません（通信しません）</string>
+    <string name="update_status_checking">確認中…</string>
+    <string name="update_status_available">新しい版 v%1$s があります（メイン画面から）</string>
+    <string name="update_status_failed">確認できませんでした</string>
+    <string name="update_status_failed_at">確認できませんでした（最後に確認できたのは %1$s）</string>
+    <string name="update_status_latest">最新の版です（%1$s に確認）</string>
+    <string name="update_status_known">最後の確認: %1$s</string>
+    <string name="update_status_never">まだ確認していません</string>
+    <string name="update_banner">新しい版 v%1$s があります</string>
+    <string name="update_notes">更新内容</string>
+    <string name="update_notes_close">更新内容を閉じる</string>
+    <string name="update_notes_empty">リリースのページで確かめられます。</string>
+    <string name="update_install">［ダウンロード］でブラウザから APK を落とし、開いて上書きでインストールします（記録・設定はそのまま残ります）。「提供元不明のアプリ」の許可が要ることがあります。</string>
+    <string name="update_download">ダウンロード</string>
+    <string name="update_later">あとで</string>
+    <string name="update_skip">この版は通知しない</string>
+    <string name="update_browser_failed">ブラウザを開けませんでした</string>
+    <!-- 2 本同時の再生・再生の操作（0.5.0） -->
+    <string name="source_replay_internal">再生（内蔵）</string>
+    <string name="replay_pair">内蔵と比較再生</string>
+    <string name="replay_pair_help">u-blox の記録（ublox_…）の［内蔵と比較再生］で、同じ時間に記録した内蔵 GNSS の記録（internal_…）と GPS 時刻で合わせて再生します。u-blox は「再生」、内蔵は「再生（内蔵）」として流れ、メイン・地図・比較タブがライブと同じように動きます（比較の基準は「再生」）。</string>
+    <string name="replay_pair_title">内蔵 GNSS の記録を選ぶ</string>
+    <string name="replay_pair_base">u-blox: %1$s</string>
+    <string name="replay_pair_reading">記録の時刻を読んでいます…</string>
+    <string name="replay_pair_none">内蔵 GNSS の記録（internal_…）がありません。</string>
+    <string name="replay_pair_no_time">この u-blox の記録から GPS 時刻を読めませんでした（自動では選びません）。</string>
+    <string name="replay_pair_no_overlap">時間の重なる記録がありません（重ならないものも選べます）。</string>
+    <string name="replay_pair_overlap">重なり %1$s</string>
+    <string name="replay_pair_apart">時間が重なりません</string>
+    <string name="replay_pair_unknown">時刻を読めません</string>
+    <string name="replay_pair_play">比較再生</string>
+    <string name="replay_pair_synced">2 本を GPS 時刻で合わせて再生: %1$s ＋ %2$s</string>
+    <string name="replay_pair_unsynced">2 本を再生（片方に GPS の週が無いため、週内秒だけで合わせています）: %1$s ＋ %2$s</string>
+    <string name="replay_time">経過 %1$s</string>
+    <string name="replay_time_total">経過 %1$s / 全体 %2$s</string>
+    <string name="replay_paused">（一時停止中）</string>
+    <string name="replay_seeking">（移動中…）</string>
+    <string name="replay_pause">一時停止</string>
+    <string name="replay_resume">再開</string>
+    <string name="replay_back_1m">−1 分</string>
+    <string name="replay_fwd_1m">＋1 分</string>
+    <string name="replay_fwd_10m">＋10 分</string>
 </resources>

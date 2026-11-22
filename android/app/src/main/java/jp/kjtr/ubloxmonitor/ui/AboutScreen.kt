@@ -22,7 +22,7 @@ import jp.kjtr.ubloxmonitor.R
 
 /** 「その他」→ このアプリについて。版・ライセンス・使っているソフトウェア・地図の出典・通信。 */
 @Composable
-fun AboutScreen(padding: PaddingValues) {
+fun AboutScreen(padding: PaddingValues, updateSection: @Composable () -> Unit = {}) {
     val context = LocalContext.current
     val uri = LocalUriHandler.current
     val version = remember {
@@ -35,6 +35,9 @@ fun AboutScreen(padding: PaddingValues) {
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
         Text(stringResource(R.string.about_version, version), style = MaterialTheme.typography.bodyMedium)
         Text(stringResource(R.string.about_summary), style = MaterialTheme.typography.bodyMedium)
+
+        Heading(R.string.update_title)
+        updateSection()
 
         Heading(R.string.about_source_title)
         val source = stringResource(R.string.about_source_url)

@@ -11,4 +11,10 @@ enum class Channel(val labelRes: Int, val trackColor: Long, val logPrefix: Strin
     UBLOX(R.string.source_ublox, 0xFF2980B9, "ublox", true),
     INTERNAL(R.string.source_internal, 0xFFC0392B, "internal", true),
     REPLAY(R.string.source_replay, 0xFF8E44AD, "ublox", false),
+    /** 2 本同時の再生（0.5.0）の内蔵 GNSS の記録。u-blox の記録は REPLAY。比較の相手になる */
+    REPLAY_INTERNAL(R.string.source_replay_internal, 0xFFD35400, "internal", false),
+    ;
+
+    /** スマホ内蔵 GNSS のデータ（MEASX・SFRBX・MON-SPAN が無い） */
+    val isPhone: Boolean get() = this == INTERNAL || this == REPLAY_INTERNAL
 }

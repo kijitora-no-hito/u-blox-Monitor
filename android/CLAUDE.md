@@ -8,17 +8,19 @@ STALE_SECONDS、帯域の振り分け、接続時の設定送信など）。共�
 
 - アプリ名: u-blox Monitor / applicationId・namespace・パッケージ: `jp.kjtr.ubloxmonitor`（公開後は変えない）
 - minSdk 24 / compileSdk・targetSdk 36（edge-to-edge 強制。Scaffold は `WindowInsets.safeDrawing`）。縦横どちらも対応（幅 600dp 以上で 2 列）
-- versionCode 8 / versionName 0.4.4（0.4.0 = 3 段目: スペクトル・u-blox モニター、受信機まわりのライブラリ化。0.4.1 = エミュレータで見つかった u-blox モニターの修正。
-  0.4.2 = 「その他」→「このアプリについて」（版・MIT・使っているソフトウェアのライセンス・地図の出典・通信）を追加。GitHub で公開。0.4.3 = 実機（Pixel 10 Pro + X20P/FT230X 921600）で取りこぼし（NAV-PVT・RAWX がほぼ全滅）が出たので USB の読み取りを専用スレッドに分け、FTDI の latency timer を 1 ms に（UsbSerialSource）。0.4.4 = 内蔵 GNSS の NAV-SAT を NAV-PVT（位置が無ければ RXM-RAWX）と同じ epoch の iTOW で続けて出す（端末の時計の iTOW だと u-center で epoch が分かれ、衛星の履歴が 1 回おきに抜けた）。**公開中（プレビュー）**）
+- versionCode 9 / versionName 0.5.0（0.4.0 = 3 段目: スペクトル・u-blox モニター、受信機まわりのライブラリ化。0.4.1 = エミュレータで見つかった u-blox モニターの修正。
+  0.4.2 = 「その他」→「このアプリについて」（版・MIT・使っているソフトウェアのライセンス・地図の出典・通信）を追加。GitHub で公開。0.4.3 = 実機（Pixel 10 Pro + X20P/FT230X 921600）で取りこぼし（NAV-PVT・RAWX がほぼ全滅）が出たので USB の読み取りを専用スレッドに分け、FTDI の latency timer を 1 ms に（UsbSerialSource）。0.4.4 = 内蔵 GNSS の NAV-SAT を NAV-PVT（位置が無ければ RXM-RAWX）と同じ epoch の iTOW で続けて出す（端末の時計の iTOW だと u-center で epoch が分かれ、衛星の履歴が 1 回おきに抜けた）。0.4.4 は**公開中（プレビュー）**。0.5.0（2026-11-23、**未公開・実機未確認**）= 地図に Google マップ（標準・航空写真・航空写真+ラベル）・水平精度の円・直近の点・縮尺・ばらつき、地図の表示状態を保存、更新の確認（GitHub API・メインの帯）、u-blox と内蔵の記録の 2 本同時の再生（GPS 時刻で同期）と再生の一時停止・シーク・速度の変更）
 - **置き場所・配布（2026-11-22〜）**: PC 版の公開リポジトリ `kijitora-no-hito/u-blox-Monitor`（public・MIT）の `android/` に同居（git subtree で履歴ごと取り込み）。
   正本は `d:\work\ublox_monitor\android`（`d:\work\android\ublox_monitor` はそこを指すジャンクションの予定）。git 操作は `d:\work\ublox_monitor` で行う。
   APK はそのリポジトリの Releases に `android-v<版>` のタグで（Windows 版は `v<版>`。Windows 版を Latest のままにするため Android 版は prerelease）。
   ファイル名は `ublox_monitor_android_<版>.apk`。README の「ダウンロード」の表とリンク・SHA-256 を版ごとに直す。**公開リポジトリなので位置入りのログ・スクリーンショットを入れない**
-- ライブラリ `:ublox-core` / `:ublox-android` は版 **0.3.0**（groupId `jp.kjtr.ublox`。アプリの版とは別。0.2.0 = `OutputProfile.Logger(keepRaw)`、0.3.0 = `UbloxReceiver.enableRtcmInput`・`ReceiverConfig.rtcmInputPacket`・`GnssFix.correctionAgeText`（RTK 補正をロガーからも使うため。app の enableRtcmInput も rtcmInputPacket を使う）。公開 API・取り込み方は `docs/LIBRARY.md`。自転車ルートロガー 0.13.0 が composite build（無ければ mavenLocal）で使っている）
-- 権限: INTERNET・ACCESS_NETWORK_STATE（地図タイルだけ）、FOREGROUND_SERVICE(_CONNECTED_DEVICE / _LOCATION)、POST_NOTIFICATIONS、
+- ライブラリ `:ublox-core` / `:ublox-android` は版 **0.4.0**（groupId `jp.kjtr.ublox`。アプリの版とは別。0.4.0 = ublox-core に `ReplayMerge.kt`（2 本のログを GPS 時刻で合わせて再生。追加だけ）。0.2.0 = `OutputProfile.Logger(keepRaw)`、0.3.0 = `UbloxReceiver.enableRtcmInput`・`ReceiverConfig.rtcmInputPacket`・`GnssFix.correctionAgeText`（RTK 補正をロガーからも使うため。app の enableRtcmInput も rtcmInputPacket を使う）。公開 API・取り込み方は `docs/LIBRARY.md`。自転車ルートロガー 0.13.0 が composite build（無ければ mavenLocal）で使っている）
+- 権限: INTERNET・ACCESS_NETWORK_STATE（地図タイル・RTK 補正・更新の確認）、FOREGROUND_SERVICE(_CONNECTED_DEVICE / _LOCATION)、POST_NOTIFICATIONS、
   ACCESS_FINE/COARSE_LOCATION（内蔵 GNSS と location 種別のサービス用。接続タブで［内蔵 GNSS を開始］を押したときに実行時に要求）、
   ACCESS_MOCK_LOCATION（擬似ロケーション）
-- 通信: 地図タブで［地図を表示］を押したときだけ国土地理院のタイル。出典「出典：国土地理院」を地図上に常時表示（消さない）。
+- 通信: 地図タブで［地図を表示］を押したときだけ国土地理院のタイル（Google の種類を選んだときは Google Maps SDK のタイル）。地理院を表示中は出典「出典：国土地理院」を地図上に常時表示（消さない）。
+  Google のときは Google のロゴ・著作権表示（SDK が出す）だけ。
+  更新の確認（0.5.0、既定 ON、「このアプリについて」で OFF）: 起動時に 12 時間に 1 回まで `api.github.com/repos/kijitora-no-hito/u-blox-Monitor/releases?per_page=20` を認証なしで GET（OFF なら一切通信しない）。
   RTK 補正タブで［補正情報の受信を開始］・［一覧を取得］を押したときだけ、利用者が入れた NTRIP キャスター / TCP サーバ
   （GGA を送る設定なら u-blox の現在位置も送る）
 - バックアップ: allowBackup="false" に加えて `data_extraction_rules.xml` / `backup_rules.xml` で `correction_secret.xml`
@@ -30,7 +32,10 @@ STALE_SECONDS、帯域の振り分け、接続時の設定送信など）。共�
 
 AGP 8.7.3 / Kotlin 2.0.21（app・ublox-android は kotlin-android、ublox-core は kotlin-jvm）/ Compose BOM 2024.12.01 / lifecycle 2.8.7（runtime-compose・service）/
 usb-serial-for-android 3.8.1（jitpack。`settings.gradle.kts` で `com.github.mik3y` だけ jitpack から。ublox-android の api 依存）/
-kotlinx-coroutines-android 1.7.3（ublox-android）/ osmdroid 6.1.20（app だけ）。
+kotlinx-coroutines-android 1.7.3（ublox-android）/ osmdroid 6.1.20（app だけ）/
+play-services-maps 19.0.0・maps-compose / maps-compose-widgets 6.4.1（0.5.0、app だけ。cycle_route_logger と同じ版）/
+androidx.fragment 1.8.5（play-services-maps が fragment 1.0 を連れてきて lintVitalRelease の InvalidFragmentVersionForActivityResult で止まるため明示）/
+org.json:json 20240303（testImplementation だけ。更新の確認の JSON を JVM のテストで動かすため）。
 Gradle Wrapper 8.11.1（gps_camera からコピー）。チャートは自前の Canvas（外部ライブラリなし）。
 
 ## 構成（モジュール）
@@ -80,7 +85,9 @@ ublox-android/src/main/java/jp/kjtr/ublox/android/
 ublox-android/src/main/res/  xml/device_filter.xml（アプリの Manifest が参照）、values/strings.xml（ublox_ で始める）
 
 app/src/main/java/jp/kjtr/ubloxmonitor/
-├── UbloxApp.kt              Application。osmdroid の設定（UA = applicationId、キャッシュは cacheDir）と MonitorRepository
+├── UbloxApp.kt              Application。osmdroid の設定（UA = applicationId、キャッシュは cacheDir）と MonitorRepository・UpdateManager
+├── update/                  （0.5.0）更新の確認。UpdateCheck.kt（純ロジック: AppVersion・Releases.parse・UpdateChecker・UpdatePolicy）、UpdateManager.kt（取得・SharedPreferences `update`）
+├── domain/MapMath.kt        （0.5.0）地図の直近の点・ばらつき（DRMS・最大）・距離の表示・地理院⇔Google のズームの換算
 ├── domain/Display.kt        ← app.py の status_text など（画面の文字列・色。グラフの計算は ublox-core の ChartMath）
 ├── data/
 │   ├── MonitorRepository.kt データ源ごとの Pipeline（Channel）・UbloxReceiver での接続・受信機設定の読み出し/送信と ACK/NAK・
@@ -91,7 +98,7 @@ app/src/main/java/jp/kjtr/ubloxmonitor/
 └── ui/                      MainActivity（下のナビ: 接続 / メイン / 比較 / 地図 / その他。横長 600dp 以上は NavigationRail）、
                              「その他」→ ReceiverSettingsScreen・CorrectionScreen・SpectrumScreen・MonitorScreen・LogsScreen、ConnectScreen、MainScreen、
                              CompareScreen、MapScreen、Charts、Common
-app/src/test/…               DisplayTest（画面の文字列）
+app/src/test/…               DisplayTest（画面の文字列）、UpdateCheckTest（0.5.0）、MapMathTest（0.5.0）
 tools/fake_caster.py         確認用の偽 NTRIP キャスター（標準ライブラリだけ。下の「ビルド・確認」）
 docs/LIBRARY.md              ライブラリの構成・公開 API・ロガーでの使い方・取り込み方の 3 案
 ```
@@ -162,10 +169,31 @@ docs/LIBRARY.md              ライブラリの構成・公開 API・ロガー�
     BDS B1C の codeType 不明は 5（B1Cp）、HALF_CYCLE_REPORTED を subHalfCyc に当てている、時計が不連続になった epoch は出さず次の epoch で clkReset
 - **比較タブ**: 基準は u-blox か再生（`Prefs.compareBase`）。位置の差の履歴（`DiffHistory`、最大 30 分）は画面を開いていなくても 1 秒ごとに、
   両方の NAV-PVT が新しい（STALE_SECONDS × 2 以内）ときだけ足す。基準を変えると消す。色は地図と同じ（u-blox 青・再生 紫・内蔵 赤）。
-- 地図: 地理院タイルは z18 まで（std・pale・写真とも）、表示は z20 までオーバーズーム、最初に寄せるときは z17、追従はズームを変えない。
+- 地図: 地理院タイルは z18 まで（std・pale・写真とも）、表示は z22 までオーバーズーム（0.5.0 で 20 → 22）、最初に寄せるときは z17、追従はズームを変えない。
   `isTilesScaledToDpi = false`（true だと高密度の画面で引き伸ばされて文字が巨大になる）。地図の領域は clipToBounds で切る（MapView がチップの行の上にはみ出したため）。
 - 擬似ロケーションは OFF・切断・抜けたときに必ず `removeTestProvider`（`MockLocation.disable`）。つないでいないときに GPS を差し替えたままにしない。
 - 地図は［地図を表示］まで MapView を作らない（作るときも最初から地理院タイル。OSM の既定タイルを取りに行かない）。
+  0.5.0 から表示中かどうかを `Prefs.mapShown` に保存（一度押せば［地図を閉じる］までタブの切り替え・再起動をまたいで表示のまま。通信の説明は表示前だけ）。
+- **Google マップ（0.5.0）**: `MapType` に G_NORMAL / G_SATELLITE / G_HYBRID（`ui/GoogleMapPane.kt`、maps-compose）。キーは `local.properties` の `MAPS_API_KEY` を
+  app/build.gradle.kts で読んで `manifestPlaceholders`（secrets-gradle-plugin は使っていない）、無い・`PLACEHOLDER…` なら `BuildConfig.HAS_MAPS_KEY = false` で Google の種類を出さない
+  （公開リポジトリなので他の人はキー無しでビルドできる）。キーの制限: パッケージ名 `jp.kjtr.ubloxmonitor` ＋ release・debug の SHA-1（2026-11-23 にユーザーが登録済み）。
+  地理院と Google は表示位置（`MapCamera`、MonitorRepository が 1 つ持つ。zoom は Google の単位、osmdroid は +log2(density)）を共有し、切り替えても同じ場所・縮尺。
+  どちらの地図にも 軌跡・水平精度の円（hAcc を m で）・直近 120 点の点（`MapMath.RECENT_POINTS`、丸めない）・現在位置の印・縮尺（osmdroid は ScaleBarOverlay、Google は maps-compose-widgets の ScaleBar）。
+  上の行に「水平精度・直近 N 点のばらつき DRMS（最大）」を cm で。Google の最初の寄せは z18。
+- **更新の確認（0.5.0）**: cycle_route_logger の update/ と同じ形。取得先は GitHub API のリリース一覧（prerelease を含む・draft は除く）で、`android-v<版>` の一番新しい版を選ぶ
+  （Windows 版の `v<版>` は無視）。ダウンロードは asset `ublox_monitor_android_<版>.apk`（無ければ他の .apk → リリースのページ。URL は https://github.com/ のものだけ）。
+  帯はメインタブの一番上（［更新内容］で本文を広げる・［ダウンロード］・［あとで］= 次の起動まで・［この版は通知しない］= 保存。新しい版が出たらまた出す。［今すぐ確認］で取り消し）。
+  設定は「その他」→「このアプリについて」の「更新の確認」（`Prefs.updateCheck`、既定 ON）。UA `ublox_monitor_android/<版>`、`Accept: application/vnd.github+json`。
+  debug だけ `adb shell am start -n jp.kjtr.ubloxmonitor/.ui.MainActivity --es updateAs 0.4.4` でいまの版をその版として比べてすぐ確認。
+- **2 本同時の再生（0.5.0）**: 記録の一覧の ublox_* に［内蔵と比較再生］。相手の internal_* は GPS 時刻の範囲（`UbxTimeRange`、先頭・末尾 256 KB だけ読む。
+  ファイル名や更新時刻は使わない＝OneDrive などにコピーすると更新時刻が変わるため）がいちばん長く重なるものを選んでおき、手で変えられる。
+  u-blox は Channel.REPLAY、内蔵は Channel.REPLAY_INTERNAL（「再生（内蔵）」、橙）に流し、比較の基準を「再生」にする（基準が再生で REPLAY_INTERNAL があれば比較の相手はそれ。
+  `CompareView.side`）。比較の差の履歴の時刻は再生の時計。再生は ublox-core の `MergedReplayRunner`（1 本の再生も同じ。`ReplaySource.Companion` が 2 本目）:
+  区切りはエポックの時刻（NAV-PVT iTOW / RXM-RAWX rcvTow、差 15 ms 以内は同じエポック）、時刻 = 週内秒を巻き戻りで展開 ＋ offset（RAWX の week か PVT の UTC から週。
+  無ければもう 1 本の最初の時刻に近い週＝「週内秒だけで合わせています」）。待ち方は ReplayRunner と同じ（5 秒より大きい間は待たない）。
+  一時停止・再開・速度の変更は再生中に（2 本とも）。シークは先へは待たずに流して追いつき、前へ（・終わった後）は最初から作り直してそこまで待たずに流す（集計・差の履歴は作り直し）。
+  シークのスライダーは全体の長さ（ファイルの先頭・末尾の時刻）が分かるときだけ（「ファイルを選んで再生」の Uri は −1 分 / +1 分 / +10 分だけ）。
+  実機のログ（`C:\Users\rei\OneDrive\Documents\ublox_monitor\phone_20261122\`、`UBX_PAIR_DIR` で変えられる）で `ReplayMergeTest.realPairedLogs`（無ければ skip。位置が入っているのでリポジトリに入れない）。
 - 記録は上書きしない（`createNewFile` が失敗したら開始しない）。記録中のファイルは削除・共有・再生できない。
 - **受信機設定（0.3.0）**: 状態は `MonitorRepository.settings`（SettingsView）。読み出しは `ReceiverConfig.readPackets`（キーは 1 つずつ VALGET）、
   ACK/NAK は `Pipeline.acks` を送信時の位置から見る（VALSET / CFG-NAV5 / CFG-RATE の応答が 1 つでも来たら判定して読み直す）。
@@ -189,6 +217,7 @@ docs/LIBRARY.md              ライブラリの構成・公開 API・ロガー�
 3. **3 段目（0.4.0、済）**: スペクトル（MON-SPAN の poll、現在値・最大値ホールド・平均、タッチで読む）、u-blox モニター（信号 RAWX/MEASX、SFRBX、5 分トレンド）。
    受信機まわりのライブラリ化（`:ublox-core` / `:ublox-android` 0.1.0、UbloxReceiver・GnssFix・OutputProfile.LOGGER、maven-publish、`docs/LIBRARY.md`）。
    受信機設定の修正（MON-VER の衛星系で非対応を判定、保存先の表示）
+3.5. **0.5.0（済・実機未確認）**: Google マップ・RTK のばらつき表示、地図の表示状態の保存、更新の確認、u-blox と内蔵の 2 本同時の再生・再生の一時停止・シーク
 4. **次の候補**: 自転車ルートロガー・ドライブロガーへの取り込み（取り込み方は未定。`docs/LIBRARY.md` の 3 案）
 
 ## ビルド・確認
@@ -218,6 +247,11 @@ python tools\fake_caster.py --port 2101 --drop-after 15 # 15 秒ごとに切る�
 - ダミーの MSM なので受信機は RTK にならない（受信量・メッセージ番号・基準局・基線長・再接続の確認用）
 
 ## 未確認事項（実機で見ること）
+
+- 0.5.0: Google マップ（3 種類）が表示されるか（キーの制限: パッケージ名 + SHA-1）、z21〜22 まで寄れるか、地理院⇔Google の切り替えで場所・縮尺が保たれるか、
+  水平精度の円・直近の点・縮尺の見え方（RTK Fixed の cm 単位）、地図の表示状態がタブの切り替え・再起動で残るか、
+  更新の帯（`updateAs 0.4.4` で android-v0.4.4 が出ない・0.4.0 で出る）・［この版は通知しない］が再起動後も効くか・OFF で通信しないか、
+  2 本同時の再生（自動で選ぶ相手・一時停止・スライダー・速度の変更・比較タブの差・地図の 2 色）、1 本の再生が前と同じか
 
 - FT230X（0403:6015）で 921600 bps を取りこぼさないか（チェックサムエラーの数で見る）。u-blox 内蔵 USB（CDC-ACM）が既定 prober で見つかるか
 - USB を差したときの起動・許可ダイアログ、抜いたときに「通信が切れました」になるか

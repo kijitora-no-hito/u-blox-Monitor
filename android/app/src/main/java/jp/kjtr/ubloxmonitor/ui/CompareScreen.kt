@@ -102,7 +102,7 @@ private fun CompareTable(c: CompareView, baseName: String) {
         Row(Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.compare_item), Modifier.weight(1.3f), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(baseName, Modifier.weight(1f), fontSize = 13.sp, color = argb(c.base.trackColor))
-            Text(stringResource(Channel.INTERNAL.labelRes), Modifier.weight(1f), fontSize = 13.sp, color = argb(Channel.INTERNAL.trackColor))
+            Text(stringResource(c.side.labelRes), Modifier.weight(1f), fontSize = 13.sp, color = argb(c.side.trackColor))
         }
         for ((name, values) in rows) {
             Row(Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
@@ -120,7 +120,7 @@ private fun DiffSection(repo: MonitorRepository, c: CompareView, baseName: Strin
     Section(stringResource(R.string.compare_diff_title)) {
         val d = c.diff
         if (d == null && c.baseSummary != null && c.internalSummary != null) {
-            val stale = if (c.baseSummary.fresh) stringResource(Channel.INTERNAL.labelRes) else baseName
+            val stale = if (c.baseSummary.fresh) stringResource(c.side.labelRes) else baseName
             Text(stringResource(R.string.compare_stale, stale), style = MaterialTheme.typography.bodySmall)
         }
         val rows = listOf(
@@ -153,10 +153,10 @@ private fun DiffSection(repo: MonitorRepository, c: CompareView, baseName: Strin
 private fun Cn0Section(c: CompareView, baseName: String) {
     Section(stringResource(R.string.compare_cn0_title)) {
         val baseColor = argb(c.base.trackColor)
-        val otherColor = argb(Channel.INTERNAL.trackColor)
+        val otherColor = argb(c.side.trackColor)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Legend(baseColor, baseName)
-            Legend(otherColor, stringResource(Channel.INTERNAL.labelRes))
+            Legend(otherColor, stringResource(c.side.labelRes))
         }
         val cn0 = c.cn0
         if (cn0 == null || cn0.rows.isEmpty()) {

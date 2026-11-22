@@ -67,7 +67,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import jp.kjtr.ubloxmonitor.BuildConfig
 import jp.kjtr.ubloxmonitor.R
+import jp.kjtr.ubloxmonitor.update.UpdateManager
 import jp.kjtr.ubloxmonitor.UbloxApp
 import jp.kjtr.ubloxmonitor.data.MonitorRepository
 
@@ -84,6 +86,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         handleUsbIntent(intent)
+        // 更新の確認（debug だけ）: `adb shell am start -n jp.kjtr.ubloxmonitor/.ui.MainActivity --es updateAs 0.4.4`
+        // = いまの版をその版として比べ、すぐリリース一覧を読む（設定 OFF なら読まない）
+        if (BuildConfig.DEBUG) intent?.getStringExtra("updateAs")?.let { (application as UbloxApp).updates.pretend(it) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -91,13 +96,14 @@ class MainActivity : ComponentActivity() {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         setContent {
-            UbloxTheme { AppRoot(repo, startTab = if (intent?.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) 0 else TAB_MAIN) }
+            UbloxTheme { AppRoot(repo, (application as UbloxApp).updates, startTab = if (intent?.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) 0 else TAB_MAIN) }
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleUsbIntent(intent)
+        if (BuildConfig.DEBUG) intent.getStringExtra("updateAs")?.let { (application as UbloxApp).updates.pretend(it) }
     }
 
     private fun handleUsbIntent(intent: Intent?) {
@@ -131,7 +137,7 @@ private enum class More(val label: Int, val help: Int, val icon: ImageVector) {
 }
 
 @Composable
-private fun AppRoot(repo: MonitorRepository, startTab: Int) {
+private fun AppRoot(repo: MonitorRepository, updates: UpdateManager, startTab: Int) {
     var tab by rememberSaveable { mutableIntStateOf(startTab) }
     var more by rememberSaveable { mutableStateOf<String?>(null) }
     BackHandler(enabled = tab == TAB_MORE && more != null) { more = null }
@@ -181,7 +187,7 @@ private fun AppRoot(repo: MonitorRepository, startTab: Int) {
             ) { padding ->
                 when (tab) {
                     0 -> ConnectScreen(repo, padding)
-                    1 -> MainScreen(repo, padding)
+                    1 -> MainScreen(repo, padding) { UpdateBanner(updates) }
                     2 -> CompareScreen(repo, padding)
                     3 -> MapScreen(repo, padding)
                     else -> {
@@ -196,7 +202,7 @@ private fun AppRoot(repo: MonitorRepository, startTab: Int) {
                                     More.SPECTRUM -> SpectrumScreen(repo, inner)
                                     More.MONITOR -> MonitorScreen(repo, inner)
                                     More.LOGS -> LogsScreen(repo, inner, onPlay = { tab = TAB_MAIN })
-                                    More.ABOUT -> AboutScreen(inner)
+                                    More.ABOUT -> AboutScreen(inner) { UpdateSettingsSection(updates, repo.prefs) }
                                 }
                             }
                         }

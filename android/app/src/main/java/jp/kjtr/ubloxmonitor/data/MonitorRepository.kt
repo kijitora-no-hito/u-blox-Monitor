@@ -31,7 +31,11 @@ import jp.kjtr.ublox.core.Pipeline
 import jp.kjtr.ublox.core.PositionDiff
 import jp.kjtr.ublox.core.Pvt
 import jp.kjtr.ublox.core.ReceiverConfig
+import jp.kjtr.ublox.core.MergedReplayRunner
 import jp.kjtr.ublox.core.ReplayClock
+import jp.kjtr.ublox.core.ReplayInput
+import jp.kjtr.ublox.core.TimeRange
+import jp.kjtr.ublox.core.UbxTimeRange
 import jp.kjtr.ublox.core.STALE_SECONDS
 import jp.kjtr.ublox.core.SideSummary
 import jp.kjtr.ublox.core.Snapshot
@@ -52,6 +56,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -72,9 +77,28 @@ class ChannelView(
     val info: String,
 )
 
+/**
+ * 再生の状態（0.5.0）。[elapsed] = 最初のエポックからの経過時間 [s]、[duration] = 全体（ファイルの先頭・末尾の時刻から。分からなければ null）、
+ * [names] = 再生しているファイル（2 本なら u-blox・内蔵の順）、[aligned] = 2 本の時刻を GPS 時刻で合わせられた、[seeking] = シークで追いついている途中。
+ */
+data class ReplayView(
+    val running: Boolean,
+    val paused: Boolean,
+    val speed: Double,
+    val elapsed: Double,
+    val duration: Double?,
+    val names: List<String>,
+    val aligned: Boolean,
+    val seeking: Boolean,
+) {
+    val paired: Boolean get() = names.size > 1
+}
+
 /** 比較画面の状態。base は比較の基準（u-blox か再生）。 */
 class CompareView(
     val base: Channel,
+    /** 比べる相手（内蔵 GNSS。2 本同時の再生で基準が再生なら再生（内蔵）） */
+    val side: Channel,
     val baseRunning: Boolean,
     val internalRunning: Boolean,
     val baseSummary: SideSummary?,
@@ -120,6 +144,9 @@ data class MockState(val status: MockStatus, val published: Long = 0)
  */
 class MonitorRepository(private val app: Context) {
     val prefs = Prefs(app)
+
+    /** 地図の表示位置（地理院と Google で共有。タブを離れても覚えておく。0.5.0） */
+    val mapCamera = jp.kjtr.ubloxmonitor.ui.MapCamera()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val mock = MockLocation(app)
 
@@ -170,7 +197,7 @@ class MonitorRepository(private val app: Context) {
 
     /** 比較の基準（u-blox か再生） */
     private val _compareBase = MutableStateFlow(
-        runCatching { Channel.valueOf(prefs.compareBase) }.getOrNull()?.takeIf { it != Channel.INTERNAL } ?: Channel.UBLOX
+        runCatching { Channel.valueOf(prefs.compareBase) }.getOrNull()?.takeIf { it == Channel.UBLOX || it == Channel.REPLAY } ?: Channel.UBLOX
     )
     val compareBase: StateFlow<Channel> = _compareBase.asStateFlow()
 
@@ -395,7 +422,7 @@ class MonitorRepository(private val app: Context) {
 
     /** 比較の基準を選ぶ（u-blox か再生）。差の履歴は消す。 */
     fun setCompareBase(channel: Channel) {
-        if (channel == Channel.INTERNAL || channel == _compareBase.value) return
+        if (channel.isPhone || channel == _compareBase.value) return
         prefs.compareBase = channel.name
         _compareBase.value = channel
         diffHistory.clear()
@@ -403,30 +430,37 @@ class MonitorRepository(private val app: Context) {
         publishViews()
     }
 
+    /** 比べる相手。基準が再生で、2 本同時の再生の内蔵があればそれ（0.5.0）。それ以外は内蔵 GNSS */
+    private fun compareSide(): Channel =
+        if (_compareBase.value == Channel.REPLAY && runtimes.containsKey(Channel.REPLAY_INTERNAL)) Channel.REPLAY_INTERNAL else Channel.INTERNAL
+
     /** 基準と内蔵の両方に新しい位置があれば、差を履歴に足す（どちらかが更新されたときだけ）。 */
     private fun updateDiffHistory() {
         val base = runtimes[_compareBase.value]?.pipeline?.state ?: return
-        val internal = runtimes[Channel.INTERNAL]?.pipeline?.state ?: return
+        val internal = runtimes[compareSide()]?.pipeline?.state ?: return
         val bp = base.pvt ?: return
         val ip = internal.pvt ?: return
         if (base.clock() - base.pvtTime > STALE_SECONDS * 2 || internal.clock() - internal.pvtTime > STALE_SECONDS * 2) return
         if (lastPair.first === bp && lastPair.second === ip) return
         lastPair = bp to ip
         val diff = Compare.diff(bp, ip) ?: return
-        diffHistory.add(TimedDiff(System.currentTimeMillis() / 1000.0, diff))
+        // 再生は再生の時計で（10 倍速でも差のグラフの時間軸がデータの時刻になる）
+        val t = if (_compareBase.value.live) System.currentTimeMillis() / 1000.0 else base.clock()
+        diffHistory.add(TimedDiff(t, diff))
     }
 
     private fun buildCompare(map: Map<Channel, ChannelView>): CompareView {
         val base = _compareBase.value
         val b = map[base]
-        val i = map[Channel.INTERNAL]
+        val side = compareSide()
+        val i = map[side]
         val bs = b?.snapshot?.let { Compare.summary(it) }
         val isum = i?.snapshot?.let { Compare.summary(it) }
         val bp = b?.snapshot?.pvt
         val ip = i?.snapshot?.pvt
         val diff = if (bs?.fresh == true && isum?.fresh == true && bp != null && ip != null) Compare.diff(bp, ip) else null
         val cn0 = if (b != null && i != null) Compare.commonCn0(b.snapshot, i.snapshot) else null
-        return CompareView(base, b?.running == true, i?.running == true, bs, isum, diff, diffHistory.toList(), cn0)
+        return CompareView(base, side, b?.running == true, i?.running == true, bs, isum, diff, diffHistory.toList(), cn0)
     }
 
     /** 設定に使う受信機の世代。手動で選んでいればそれを、なければ判別結果を使う（Python 版 _generation）。 */
@@ -642,13 +676,39 @@ class MonitorRepository(private val app: Context) {
 
     // ---- 再生 ----
 
+    /** 再生し直すための材料（後ろへのシーク・終わった後のシーク）。[opens] は開くたびに新しいストリームと大きさを返す */
+    private class ReplaySpec(val opens: List<() -> Pair<java.io.InputStream, Long>>, val names: List<String>, val duration: Double?)
+
+    private var replaySpec: ReplaySpec? = null
+
+    private val _replay = MutableStateFlow<ReplayView?>(null)
+    /** 再生の状態（記録タブの操作欄。再生したことが無ければ null） */
+    val replay: StateFlow<ReplayView?> = _replay.asStateFlow()
+
+    /** ファイルの GPS 時刻の範囲（先頭と末尾だけ読む。大きさ・更新時刻が同じなら覚えた値）。IO スレッドで呼ぶ */
+    private val rangeCache = ConcurrentHashMap<String, Pair<String, TimeRange?>>()
+
+    fun timeRange(file: File): TimeRange? {
+        val key = "${file.length()}/${file.lastModified()}"
+        rangeCache[file.path]?.let { if (it.first == key) return it.second }
+        val range = try {
+            RandomAccessFile(file, "r").use { raf ->
+                val n = minOf(raf.length(), UbxTimeRange.PROBE_BYTES.toLong()).toInt()
+                val head = ByteArray(n).also { raf.seek(0); raf.readFully(it) }
+                val tail = ByteArray(n).also { raf.seek(raf.length() - n); raf.readFully(it) }
+                UbxTimeRange.of(head, tail)
+            }
+        } catch (e: IOException) {
+            null
+        }
+        rangeCache[file.path] = key to range
+        return range
+    }
+
     fun startReplay(file: File, speed: Double) {
         prefs.replaySpeed = speed
-        try {
-            startReplay(FileInputStream(file), file.length(), file.name, speed)
-        } catch (e: IOException) {
-            addLog("再生できません: ${e.message}")
-        }
+        val spec = ReplaySpec(listOf { FileInputStream(file) to file.length() }, listOf(file.name), timeRange(file)?.duration)
+        launchReplay(spec, speed, 0.0, paused = false, announce = true)
     }
 
     fun startReplay(uri: Uri, speed: Double) {
@@ -664,26 +724,111 @@ class MonitorRepository(private val app: Context) {
                     if (ni >= 0 && !c.isNull(ni)) name = c.getString(ni)
                 }
             }
-            val input = app.contentResolver.openInputStream(uri) ?: throw IOException("開けません")
-            startReplay(input, size, name, speed)
+            val open = { (app.contentResolver.openInputStream(uri) ?: throw IOException("開けません")) to size }
+            launchReplay(ReplaySpec(listOf(open), listOf(name), null), speed, 0.0, paused = false, announce = true)
         } catch (e: Exception) {
             addLog("再生できません: ${e.message}")
         }
     }
 
-    private fun startReplay(input: java.io.InputStream, size: Long, name: String, speed: Double) {
+    /**
+     * u-blox の記録 [ublox] と内蔵 GNSS の記録 [internal] を GPS 時刻で合わせて再生する（0.5.0）。
+     * u-blox は「再生」、内蔵は「再生（内蔵）」に流し、比較の基準を「再生」にする（比較の相手は再生（内蔵））。
+     */
+    fun startPairReplay(ublox: File, internal: File, speed: Double) {
+        prefs.replaySpeed = speed
+        val a = timeRange(ublox)
+        val b = timeRange(internal)
+        val duration = if (a != null && b != null) maxOf(a.end, b.end) - minOf(a.start, b.start) else null
+        val spec = ReplaySpec(
+            listOf({ FileInputStream(ublox) to ublox.length() }, { FileInputStream(internal) to internal.length() }),
+            listOf(ublox.name, internal.name), duration,
+        )
+        launchReplay(spec, speed, 0.0, paused = false, announce = true)
+        if (_compareBase.value != Channel.REPLAY) setCompareBase(Channel.REPLAY)
+    }
+
+    private fun launchReplay(spec: ReplaySpec, speed: Double, startAt: Double, paused: Boolean, announce: Boolean) {
+        val streams = try {
+            spec.opens.map { it() }
+        } catch (e: Exception) {
+            addLog("再生できません: ${e.message}")
+            return
+        }
+        replaySpec = spec
         val clock = ReplayClock()
-        val pipeline = newPipeline(Channel.REPLAY, clock)
-        val source = ReplaySource(pipeline, input, speed, clock, size, name)
-        startSource(Channel.REPLAY, pipeline, source)
-        // 再生でもログ欄に開始を出す（終了は checkSources で「再生が終わりました」）
-        val speedText = if (speed > 0) "%.0f 倍速".format(speed) else "最大"
-        pipeline.log(app.getString(jp.kjtr.ubloxmonitor.R.string.replay_started, name, speedText, "%.1f".format(size / 1e6)))
+        val pipelines = spec.names.indices.map { i -> newPipeline(if (i == 0) Channel.REPLAY else Channel.REPLAY_INTERNAL, clock) }
+        val inputs = streams.mapIndexed { i, (input, size) -> ReplayInput(pipelines[i], input, size) }
+        val runner = MergedReplayRunner(inputs, speed, clock, startAt)
+        if (paused) runner.pause()
+        val source = ReplaySource(runner, streams.sumOf { it.second }, spec.names.joinToString(" + "))
+        synchronized(runtimes) {
+            // 前の 2 本目は消す（1 本の再生のときに「再生（内蔵）」が残らないように）
+            stopChannel(Channel.REPLAY_INTERNAL, null)
+            runtimes.remove(Channel.REPLAY_INTERNAL)
+            startSource(Channel.REPLAY, pipelines[0], source)
+            if (pipelines.size > 1) {
+                startSource(Channel.REPLAY_INTERNAL, pipelines[1], ReplaySource.Companion(source, spec.names[1]))
+                selected.value = Channel.REPLAY
+            }
+        }
+        diffHistory.clear()
+        lastPair = null to null
+        if (announce) {
+            // 再生でもログ欄に開始を出す（終了は checkSources で「再生が終わりました」）
+            val speedText = if (speed > 0) "%.0f 倍速".format(speed) else "最大"
+            pipelines[0].log(app.getString(jp.kjtr.ubloxmonitor.R.string.replay_started, source.title, speedText, "%.1f".format(source.size / 1e6)))
+        }
+        publishViews()
     }
 
     fun stopReplay() {
         if (isRunning(Channel.REPLAY)) stopChannel(Channel.REPLAY, app.getString(jp.kjtr.ubloxmonitor.R.string.replay_stopped))
+        stopChannel(Channel.REPLAY_INTERNAL, null)
         publishViews()
+    }
+
+    private fun replaySource(): ReplaySource? = runtimes[Channel.REPLAY]?.source as? ReplaySource
+
+    /** 一時停止・再開（2 本とも） */
+    fun toggleReplayPause() {
+        val r = replaySource()?.takeIf { it.isAlive }?.runner ?: return
+        if (r.paused) r.resume() else r.pause()
+        publishViews()
+    }
+
+    /** 再生中に速度を変える（次の再生の既定にもする） */
+    fun setReplaySpeed(speed: Double) {
+        prefs.replaySpeed = speed
+        replaySource()?.runner?.speed = speed
+        publishViews()
+    }
+
+    /**
+     * 再生の経過時間 [seconds] へ移る（2 本とも）。先へは待たずに流して追いつく。前へ（または終わった後）は最初から作り直して
+     * そこまで待たずに流す（集計・比較の差の履歴は作り直しになる）。
+     */
+    fun seekReplay(seconds: Double) {
+        val target = seconds.coerceAtLeast(0.0)
+        val source = replaySource()
+        val runner = source?.runner
+        if (source != null && runner != null && source.isAlive && target >= runner.elapsed) {
+            runner.seekForward(target)
+        } else {
+            val spec = replaySpec ?: return
+            launchReplay(spec, runner?.speed ?: prefs.replaySpeed, target, paused = runner?.paused == true, announce = false)
+        }
+        publishViews()
+    }
+
+    private fun replayView(): ReplayView? {
+        val spec = replaySpec ?: return null
+        val source = replaySource() ?: return null
+        val r = source.runner
+        return ReplayView(
+            running = source.isAlive, paused = r.paused, speed = r.speed, elapsed = r.elapsed, duration = spec.duration,
+            names = spec.names, aligned = r.aligned, seeking = source.isAlive && r.seeking,
+        )
     }
 
     // ---- 記録 ----
@@ -793,12 +938,13 @@ class MonitorRepository(private val app: Context) {
                 record = runtime.pipeline.logStatus(),
                 running = running,
                 canSend = running && runtime.source.canSend,
-                progress = (runtime.source as? ReplaySource)?.progress,
+                progress = (runtime.source as? ReplaySource)?.progress ?: (runtime.source as? ReplaySource.Companion)?.primary?.progress,
                 info = info(runtime),
             )
         }
         _views.value = map
         _compare.value = buildCompare(map)
+        _replay.value = replayView()
         publishSettings()
         val ms = _mockState.value
         if (ms.status == MockStatus.ACTIVE) _mockState.value = ms.copy(published = mock.published)

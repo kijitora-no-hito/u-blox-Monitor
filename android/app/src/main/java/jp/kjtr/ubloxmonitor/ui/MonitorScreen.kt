@@ -125,7 +125,7 @@ fun MonitorScreen(repo: MonitorRepository, padding: PaddingValues) {
                 ChannelSelector(views, channel) { repo.selected.value = it }
                 when {
                     views.isEmpty() -> Text(stringResource(R.string.monitor_no_source), style = MaterialTheme.typography.bodySmall)
-                    channel == Channel.INTERNAL ->
+                    channel.isPhone ->
                         Text(stringResource(R.string.monitor_internal_note), style = MaterialTheme.typography.bodySmall)
                 }
             }

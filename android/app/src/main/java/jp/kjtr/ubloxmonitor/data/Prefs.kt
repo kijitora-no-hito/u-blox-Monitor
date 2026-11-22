@@ -36,6 +36,16 @@ class Prefs(context: Context) {
         get() = sp.getString("map_type", "STD") ?: "STD"
         set(v) = sp.edit().putString("map_type", v).apply()
 
+    /** 地図を表示中か（0.5.0。［地図を表示］を押したら［地図を閉じる］までタブの切り替え・再起動をまたいで表示のまま） */
+    var mapShown: Boolean
+        get() = sp.getBoolean("map_shown", false)
+        set(v) = sp.edit().putBoolean("map_shown", v).apply()
+
+    /** 更新の確認（0.5.0。既定 ON。OFF の間は api.github.com に一切つながない） */
+    var updateCheck: Boolean
+        get() = sp.getBoolean("update_check", true)
+        set(v) = sp.edit().putBoolean("update_check", v).apply()
+
     var mapFollow: Boolean
         get() = sp.getBoolean("map_follow", true)
         set(v) = sp.edit().putBoolean("map_follow", v).apply()

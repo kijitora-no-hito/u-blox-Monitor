@@ -125,7 +125,7 @@ fun SpectrumScreen(repo: MonitorRepository, padding: PaddingValues) {
             }, modifier = Modifier.align(Alignment.CenterVertically)) { Text(stringResource(R.string.spectrum_clear)) }
         }
         Legend()
-        val status = if (channel == Channel.INTERNAL) stringResource(R.string.spectrum_internal)
+        val status = if (channel.isPhone) stringResource(R.string.spectrum_internal)
         else Spectrum.statusText(count, connected, polls)
         Text(status, style = MaterialTheme.typography.bodySmall)
 

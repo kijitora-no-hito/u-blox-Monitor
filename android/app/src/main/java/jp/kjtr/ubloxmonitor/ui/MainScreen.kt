@@ -61,7 +61,7 @@ private val STATUS_ROWS = listOf(
 )
 
 @Composable
-fun MainScreen(repo: MonitorRepository, padding: PaddingValues) {
+fun MainScreen(repo: MonitorRepository, padding: PaddingValues, banner: @Composable () -> Unit = {}) {
     val views by repo.views.collectAsState()
     val selected by repo.selected.collectAsState()
     val logs by repo.logs.collectAsState()
@@ -77,6 +77,8 @@ fun MainScreen(repo: MonitorRepository, padding: PaddingValues) {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            // 更新のお知らせ（新しい版があるときだけ）
+            banner()
             ChannelSelector(views, view?.channel ?: selected) { repo.selected.value = it }
             if (view == null) {
                 Text(stringResource(R.string.no_source), style = MaterialTheme.typography.bodyMedium)
