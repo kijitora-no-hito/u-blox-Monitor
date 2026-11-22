@@ -60,7 +60,7 @@ fun LogsScreen(repo: MonitorRepository, padding: PaddingValues, onPlay: () -> Un
     val replay = views[Channel.REPLAY]
 
     LaunchedEffect(Unit) { repo.refreshLogFiles() }
-    LaunchedEffect(views[Channel.UBLOX]?.record?.size) { repo.refreshLogFiles() }
+    LaunchedEffect(views[Channel.UBLOX]?.record?.size, views[Channel.INTERNAL]?.record?.size) { repo.refreshLogFiles() }
 
     val openDocument = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {

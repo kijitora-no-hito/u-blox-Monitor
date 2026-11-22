@@ -16,7 +16,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- 位置情報: 内蔵 GNSS との比較（次の段階）と、location 種別のフォアグラウンドサービスに使う -->
+    <!-- 位置情報: 内蔵 GNSS（接続タブで開始したときに実行時に要求）と、location 種別のフォアグラウンドサービスに使う -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- 擬似ロケーション（開発者オプションで「仮の現在地情報アプリ」に選ばれたときだけ働く） -->

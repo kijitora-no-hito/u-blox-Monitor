@@ -93,6 +93,10 @@ class GnssState(val clock: () -> Double = { System.currentTimeMillis() / 1000.0 
     @Volatile
     var pvt: Pvt? = null
         private set
+    /** 最新の NAV-PVT を受けた時刻（clock の値。比較画面の「新しいか」の判定に使う） */
+    @Volatile
+    var pvtTime: Double = 0.0
+        private set
     private val pvtHistory = ArrayDeque<TimedPvt>()
     private val counts = LinkedHashMap<MsgId, Int>()
     private var sats: Map<Pair<Int, Int>, Pair<NavSat, Double>> = emptyMap()
@@ -125,7 +129,8 @@ class GnssState(val clock: () -> Double = { System.currentTimeMillis() / 1000.0 
     /** NAV-PVT を反映する。 */
     fun updatePvt(pvt: Pvt) = synchronized(lock) {
         this.pvt = pvt
-        pvtHistory.addLast(TimedPvt(clock(), pvt))
+        pvtTime = clock()
+        pvtHistory.addLast(TimedPvt(pvtTime, pvt))
         while (pvtHistory.size > MAX_PVT_HISTORY) pvtHistory.removeFirst()
     }
 

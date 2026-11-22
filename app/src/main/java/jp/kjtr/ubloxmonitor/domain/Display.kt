@@ -52,7 +52,8 @@ object Display {
             "nrsv" to pvt.numSv.toString(),
             "hacc" to formatValue(pvt.hacc, 3, " m"),
             "vacc" to formatValue(pvt.vacc, 3, " m"),
-            "pdop" to "%.2f".format(pvt.pdop),
+            // 内蔵 GNSS の合成 NAV-PVT は PDOP が分からないので 0 を入れている（「—」にする）
+            "pdop" to if (pvt.pdop == 0.0) "—" else "%.2f".format(pvt.pdop),
             "speed" to formatValue(pvt.speed, 2, " m/s"),
             "heading" to formatValue(pvt.heading, 1, "°"),
         )
@@ -65,10 +66,20 @@ object Display {
         return "受信中 %.1f kbps（経過 %s）".format(kbps, age)
     }
 
-    /** 受信メッセージ数の表示文字列を返す（多い順に 6 種類）。 */
+    /** 受信メッセージの表示の上限（既知のメッセージは上限に関係なく全部出す） */
+    const val MAX_MESSAGE_ROWS = 6
+
+    /**
+     * 受信メッセージ数の表示文字列を返す。既知のメッセージ（Ubx.MESSAGE_NAMES の並び）を先に全部、
+     * 未知のもの（27-00 など）は後ろに多い順で、合わせて MAX_MESSAGE_ROWS 行まで。
+     * Python 版は件数順の 6 種類だが、実機では未知のメッセージが上に来て NAV-PVT などが隠れるため変えた。
+     */
     fun messageText(counts: Map<MsgId, Int>): String {
         if (counts.isEmpty()) return "—"
-        return counts.entries.sortedByDescending { it.value }.take(6).joinToString("\n") { "${it.key}: ${it.value}" }
+        val known = Ubx.MESSAGE_NAMES.keys.filter { it in counts }
+        val unknown = counts.entries.filter { it.key !in Ubx.MESSAGE_NAMES }.sortedByDescending { it.value }
+            .take(maxOf(0, MAX_MESSAGE_ROWS - known.size)).map { it.key }
+        return (known + unknown).joinToString("\n") { "$it: ${counts.getValue(it)}" }
     }
 
     /** 信号別の追尾数の表の行。 */
@@ -135,11 +146,28 @@ object ChartMath {
     fun timeUnit(spanMinutes: Double): Pair<String, Double> =
         TIME_UNITS.first { spanMinutes < it.first }.let { it.second to it.third }
 
-    /** 縦軸を値の範囲に合わせ、目盛りを切りのよい値にする（lower, upper, step）。 */
+    /** 値の幅がこれより狭いときは上下に余白を取る（整数の系列 / それ以外） */
+    const val MIN_Y_SPAN_INTEGER = 4.0
+    const val MIN_Y_SPAN = 0.2
+
+    /**
+     * 縦軸を値の範囲に合わせ、目盛りを切りのよい値にする（lower, upper, step）。
+     * 値が一定に近いと線が端に張り付くので、幅が狭いときは中央に来るよう上下に余白を取る
+     * （例: 使用衛星数が 15 で一定なら 13〜17）。yFloor より下にはしない。
+     */
     fun fitY(values: List<Double>, yFloor: Double?, integer: Boolean): Triple<Double, Double, Double> {
         var low = values.min()
-        val high = values.max()
-        if (yFloor != null) low = maxOf(yFloor, low)
+        var high = values.max()
+        val minSpan = if (integer) MIN_Y_SPAN_INTEGER else MIN_Y_SPAN
+        if (high - low < minSpan) {
+            val pad = (minSpan - (high - low)) / 2
+            low -= pad
+            high += pad
+        }
+        if (yFloor != null && low < yFloor) {
+            high = maxOf(high, yFloor + minOf(minSpan, high - low))
+            low = yFloor
+        }
         val step = niceStep(maxOf(high - low, if (integer) 1.0 else 0.1), Y_TICKS, integer)
         val lower = floor(low / step) * step
         var upper = ceil(high / step) * step

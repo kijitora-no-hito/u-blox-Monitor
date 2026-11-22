@@ -1,8 +1,12 @@
 package jp.kjtr.ubloxmonitor.ui
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -52,7 +56,14 @@ fun ConnectScreen(repo: MonitorRepository, padding: PaddingValues) {
     val preferred by repo.preferredDevice.collectAsState()
     val mock by repo.mockState.collectAsState()
     val ublox = views[Channel.UBLOX]
+    val internal = views[Channel.INTERNAL]
     val connected = ublox?.running == true
+
+    // 内蔵 GNSS の位置情報の権限（正確な位置が要る。概略だけ許可されたら使えない）
+    var permissionDenied by rememberSaveable { mutableStateOf(false) }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        if (result[Manifest.permission.ACCESS_FINE_LOCATION] == true) repo.startInternal() else permissionDenied = true
+    }
 
     var deviceKey by rememberSaveable { mutableStateOf<String?>(null) }
     var baud by rememberSaveable { mutableIntStateOf(repo.prefs.baud) }
@@ -114,11 +125,49 @@ fun ConnectScreen(repo: MonitorRepository, padding: PaddingValues) {
             if (info.isNotEmpty()) Text(info, style = MaterialTheme.typography.bodyMedium)
         }
 
+        Section(stringResource(R.string.internal_title)) {
+            val internalRunning = internal?.running == true
+            Text(stringResource(R.string.internal_help), style = MaterialTheme.typography.bodySmall)
+            Button(onClick = {
+                when {
+                    internalRunning -> repo.stopInternal()
+                    repo.hasLocationPermission() -> repo.startInternal()
+                    else -> {
+                        permissionDenied = false
+                        locationPermission.launch(
+                            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                        )
+                    }
+                }
+            }) { Text(stringResource(if (internalRunning) R.string.internal_stop else R.string.internal_start)) }
+            if (permissionDenied) {
+                Text(stringResource(R.string.internal_permission_denied), style = MaterialTheme.typography.bodyMedium)
+                OutlinedButton(onClick = {
+                    try {
+                        context.startActivity(
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                        )
+                    } catch (_: ActivityNotFoundException) {
+                    }
+                }) { Text(stringResource(R.string.open_app_settings)) }
+            }
+            internal?.info?.takeIf { it.isNotEmpty() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        }
+
         Section(stringResource(R.string.record_title)) {
-            val recording = ublox?.record != null
-            Text(Display.recordText(ublox?.record))
-            Button(onClick = { repo.toggleRecord(Channel.UBLOX) }, enabled = connected || recording) {
-                Text(stringResource(if (recording) R.string.record_stop else R.string.record_start))
+            // データ源ごとに独立して開始・停止する（ファイル名の接頭辞 ublox_ / internal_）
+            for ((channel, view) in listOf(Channel.UBLOX to ublox, Channel.INTERNAL to internal)) {
+                val recording = view?.record != null
+                val running = view?.running == true
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.record_source, stringResource(channel.labelRes), Display.recordText(view?.record)),
+                        Modifier.weight(1f),
+                    )
+                    Button(onClick = { repo.toggleRecord(channel) }, enabled = running || recording) {
+                        Text(stringResource(if (recording) R.string.record_stop else R.string.record_start))
+                    }
+                }
             }
             Text(stringResource(R.string.record_folder, repo.logFolder.path), style = MaterialTheme.typography.bodySmall)
         }

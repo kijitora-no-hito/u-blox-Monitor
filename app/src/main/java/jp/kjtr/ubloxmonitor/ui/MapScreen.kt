@@ -31,6 +31,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -58,9 +59,9 @@ import org.osmdroid.views.overlay.Polyline
 
 /** 地理院タイル（API キー不要。出典表示が利用条件）。 */
 enum class MapType(val labelRes: Int, val source: XYTileSource) {
-    STD(R.string.map_type_std, XYTileSource("gsi_std", 2, 18, 256, ".png", arrayOf("https://cyberjapandata.gsi.go.jp/xyz/std/"), "出典：国土地理院")),
-    PALE(R.string.map_type_pale, XYTileSource("gsi_pale", 2, 18, 256, ".png", arrayOf("https://cyberjapandata.gsi.go.jp/xyz/pale/"), "出典：国土地理院")),
-    PHOTO(R.string.map_type_photo, XYTileSource("gsi_seamlessphoto", 2, 18, 256, ".jpg", arrayOf("https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/"), "出典：国土地理院")),
+    STD(R.string.map_type_std, XYTileSource("gsi_std", 2, MAX_TILE_ZOOM, 256, ".png", arrayOf("https://cyberjapandata.gsi.go.jp/xyz/std/"), "出典：国土地理院")),
+    PALE(R.string.map_type_pale, XYTileSource("gsi_pale", 2, MAX_TILE_ZOOM, 256, ".png", arrayOf("https://cyberjapandata.gsi.go.jp/xyz/pale/"), "出典：国土地理院")),
+    PHOTO(R.string.map_type_photo, XYTileSource("gsi_seamlessphoto", 2, MAX_TILE_ZOOM, 256, ".jpg", arrayOf("https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/"), "出典：国土地理院")),
 }
 
 /** データ源ごとの現在位置の印（中は測位状態の色、縁はデータ源の色）。 */
@@ -127,7 +128,8 @@ fun MapScreen(repo: MonitorRepository, padding: PaddingValues) {
                 Text(stringResource(R.string.map_position, lat, lon, mainTrack.size), style = MaterialTheme.typography.bodySmall)
             }
         }
-        Box(Modifier.fillMaxSize()) {
+        // MapView（Android の View）がチップの行の上にはみ出して描かれないよう、地図の領域で切る
+        Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
             if (!shown) {
                 Text(
                     stringResource(R.string.map_notice), Modifier.align(Alignment.Center).padding(24.dp),
@@ -169,10 +171,12 @@ private fun OsmMap(
             // 既定（OSM）のタイルを取りに行かないよう、最初から地理院タイルにする
             setTileSource(mapType.source)
             setMultiTouchControls(true)
-            isTilesScaledToDpi = true
+            // DPI に合わせた拡大はしない（高密度の画面では z17 でも z18 のタイルを 2.6 倍に引き伸ばし、文字が巨大になる）
+            isTilesScaledToDpi = false
             zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
             minZoomLevel = 3.0
-            maxZoomLevel = 20.0
+            // タイルは z18 まで。それより先はオーバーズーム
+            maxZoomLevel = MAX_VIEW_ZOOM
             isVerticalMapRepetitionEnabled = false
             controller.setZoom(5.0)
             controller.setCenter(GeoPoint(36.0, 138.0))
@@ -222,13 +226,21 @@ private fun OsmMap(
             val g = GeoPoint(last.first, last.second)
             if (!centered) {
                 centered = true
-                mapView.controller.setZoom(17.0)
+                mapView.controller.setZoom(INITIAL_ZOOM)
                 mapView.controller.setCenter(g)
             } else if (follow && mapView.width > 0 && !mapView.boundingBox.contains(g)) {
-                mapView.controller.animateTo(g)
+                // 中心だけ動かす（ズームは利用者が選んだまま）
+                mapView.controller.animateTo(g, mapView.zoomLevelDouble, null)
             }
         }
         mapView.invalidate()
     }
-    AndroidView(factory = { mapView }, modifier = Modifier.fillMaxWidth().fillMaxSize())
+    AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize().clipToBounds())
 }
+
+/** 最初に現在位置へ寄せるときのズーム */
+private const val INITIAL_ZOOM = 17.0
+/** 地理院タイルの最大ズーム（標準・淡色・写真とも） */
+private const val MAX_TILE_ZOOM = 18
+/** 表示の最大ズーム（タイルより先はオーバーズーム） */
+private const val MAX_VIEW_ZOOM = 20.0

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -37,7 +38,7 @@ import jp.kjtr.ubloxmonitor.UbloxApp
 import jp.kjtr.ubloxmonitor.data.MonitorRepository
 
 /**
- * 画面は下のナビ（接続 / メイン / 地図 / 記録）。2 段目（RTK 補正・受信機設定）・
+ * 画面は下のナビ（接続 / メイン / 比較 / 地図 / 記録）。2 段目（RTK 補正・受信機設定）・
  * 3 段目（スペクトル・u-blox モニター）はここに項目を足す。
  */
 class MainActivity : ComponentActivity() {
@@ -77,6 +78,7 @@ private data class Dest(val label: Int, val icon: ImageVector)
 private val DESTS = listOf(
     Dest(R.string.nav_connect, Icons.Filled.Settings),
     Dest(R.string.nav_main, Icons.Filled.Home),
+    Dest(R.string.nav_compare, Icons.Filled.Info),
     Dest(R.string.nav_map, Icons.Filled.Place),
     Dest(R.string.nav_logs, Icons.AutoMirrored.Filled.List),
 )
@@ -103,7 +105,8 @@ private fun AppRoot(repo: MonitorRepository, startTab: Int) {
         when (tab) {
             0 -> ConnectScreen(repo, padding)
             1 -> MainScreen(repo, padding)
-            2 -> MapScreen(repo, padding)
+            2 -> CompareScreen(repo, padding)
+            3 -> MapScreen(repo, padding)
             else -> LogsScreen(repo, padding, onPlay = { tab = 1 })
         }
     }

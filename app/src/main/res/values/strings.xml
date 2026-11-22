@@ -5,6 +5,7 @@
     <!-- 下のナビ -->
     <string name="nav_connect">接続</string>
     <string name="nav_main">メイン</string>
+    <string name="nav_compare">比較</string>
     <string name="nav_map">地図</string>
     <string name="nav_logs">記録</string>
 
@@ -36,8 +37,31 @@
     <string name="usb_permission_denied">USB の使用が許可されませんでした。</string>
     <string name="open_failed">接続できません: %1$s</string>
 
+    <!-- 内蔵 GNSS -->
+    <string name="internal_title">内蔵 GNSS（このスマホ）</string>
+    <string name="internal_start">内蔵 GNSS を開始</string>
+    <string name="internal_stop">内蔵 GNSS を停止</string>
+    <string name="internal_help">スマホ内蔵の GNSS の位置・衛星・生の測定値を UBX（NAV-PVT・NAV-SAT・RXM-RAWX）に直して表示・記録します。u-blox 受信機とは別に同時に動かせます。正確な位置情報の許可が必要です。</string>
+    <string name="internal_no_permission">正確な位置情報（ACCESS_FINE_LOCATION）が許可されていません。</string>
+    <string name="internal_permission_denied">位置情報が許可されませんでした。「正確な位置情報」を許可すると内蔵 GNSS を使えます。</string>
+    <string name="open_app_settings">アプリの設定を開く</string>
+    <string name="internal_started">内蔵 GNSS を開始しました</string>
+    <string name="internal_stopped">内蔵 GNSS を停止しました</string>
+    <string name="internal_ended">内蔵 GNSS が止まりました: %1$s</string>
+    <string name="internal_provider_off">端末の位置情報（GPS）がオフです。設定でオンにしてください。</string>
+    <string name="internal_mock">擬似ロケーション中のため内蔵の位置は使えません（衛星・生の測定値は出します）</string>
+    <string name="internal_waiting_fix">内蔵の位置を待っています</string>
+    <string name="internal_meas_unsupported">この端末は GNSS の生の測定値に対応していません（RXM-RAWX なし。NAV-PVT・NAV-SAT だけ出します）</string>
+    <string name="internal_meas_not_allowed">生の測定値の取得が許可されていません（RXM-RAWX なし）</string>
+    <string name="internal_meas_waiting">生の測定値（RXM-RAWX）を待っています</string>
+    <string name="internal_meas_no_clock">生の測定値は届いていますが RXM-RAWX はまだ出していません（%1$s）</string>
+    <string name="internal_meas_full">生の測定値: RXM-RAWX %1$d 回（完全な追跡を要求中）</string>
+    <string name="internal_meas_ok">生の測定値: RXM-RAWX %1$d 回</string>
+    <string name="internal_full_tracking_hint">Android 11 以前: 開発者オプションの「GNSS 測定の完全な追跡を強制」を ON にすると測定値が間引かれません。</string>
+
     <!-- 記録 -->
     <string name="record_title">記録</string>
+    <string name="record_source">%1$s: %2$s</string>
     <string name="record_start">記録開始</string>
     <string name="record_stop">記録停止</string>
     <string name="record_folder">保存先: %1$s</string>
@@ -83,6 +107,32 @@
     <string name="chart_nrsv">使用衛星数</string>
     <string name="log_title">ログ</string>
 
+    <!-- 比較 -->
+    <string name="compare_base_title">比較の基準</string>
+    <string name="compare_base_help">内蔵 GNSS をこの基準（u-blox 受信機、または再生中のログ）と比べます。位置の差は基準から見た内蔵の位置です。</string>
+    <string name="compare_only_base">内蔵 GNSS が動いていません。［接続］で内蔵 GNSS を開始してください。</string>
+    <string name="compare_only_internal">%1$s のデータがありません（内蔵 GNSS だけ動いています）。</string>
+    <string name="compare_none">比較するデータがありません。［接続］で u-blox 受信機と内蔵 GNSS を開始するか、［記録］から再生してください。</string>
+    <string name="compare_stale">%1$s の位置が古いため、位置の差は出していません。</string>
+    <string name="compare_table_title">測位の比較</string>
+    <string name="compare_item">項目</string>
+    <string name="compare_fix">測位状態</string>
+    <string name="compare_used">使用衛星数</string>
+    <string name="compare_tracked">受信中の衛星数</string>
+    <string name="compare_hacc">水平の推定精度</string>
+    <string name="compare_vacc">垂直の推定精度</string>
+    <string name="compare_pdop">PDOP</string>
+    <string name="compare_speed">速度</string>
+    <string name="compare_cn0">平均 C/N0（使用衛星）</string>
+    <string name="compare_diff_title">位置の差（基準 → 内蔵）</string>
+    <string name="compare_horizontal">水平距離</string>
+    <string name="compare_bearing">方位</string>
+    <string name="compare_up">楕円体高の差</string>
+    <string name="compare_chart">位置の差の推移</string>
+    <string name="compare_cn0_title">共通の衛星の C/N0（L1 帯）[dB-Hz]</string>
+    <string name="compare_cn0_only">%1$s だけ: %2$d 機 / 内蔵だけ: %3$d 機</string>
+    <string name="compare_cn0_none">両方で見えている衛星はありません。</string>
+
     <!-- 地図 -->
     <string name="map_show">地図を表示（国土地理院に接続）</string>
     <string name="map_close">地図を閉じる</string>
@@ -103,7 +153,8 @@
     <string name="open_file">ファイルを選んで再生</string>
     <string name="stop_replay">再生停止</string>
     <string name="replay_running">再生中: %1$s</string>
-    <string name="replay_finished">再生が終わりました</string>
+    <string name="replay_finished_name">再生が終わりました: %1$s</string>
+    <string name="replay_started">再生開始: %1$s（%2$s、%3$s MB）</string>
     <string name="replay_stopped">再生を止めました</string>
     <string name="logs_title">記録した UBX ログ</string>
     <string name="logs_empty">まだ記録がありません。</string>

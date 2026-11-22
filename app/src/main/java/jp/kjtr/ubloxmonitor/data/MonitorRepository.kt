@@ -10,11 +10,23 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import jp.kjtr.ubloxmonitor.data.source.Channel
+import jp.kjtr.ubloxmonitor.data.source.InternalGnssSource
 import jp.kjtr.ubloxmonitor.data.source.ReplaySource
 import jp.kjtr.ubloxmonitor.data.source.Source
 import jp.kjtr.ubloxmonitor.data.source.UsbSerialSource
+import jp.kjtr.ubloxmonitor.domain.CommonCn0
+import jp.kjtr.ubloxmonitor.domain.Compare
+import jp.kjtr.ubloxmonitor.domain.DiffHistory
 import jp.kjtr.ubloxmonitor.domain.Link
+import jp.kjtr.ubloxmonitor.domain.PositionDiff
+import jp.kjtr.ubloxmonitor.domain.Pvt
+import jp.kjtr.ubloxmonitor.domain.STALE_SECONDS
+import jp.kjtr.ubloxmonitor.domain.SideSummary
+import jp.kjtr.ubloxmonitor.domain.TimedDiff
 import jp.kjtr.ubloxmonitor.domain.LogStatus
 import jp.kjtr.ubloxmonitor.domain.MonVer
 import jp.kjtr.ubloxmonitor.domain.Pipeline
@@ -48,6 +60,19 @@ class ChannelView(
     val progress: Float?,
     /** 接続中の受信機の情報・終了の理由など（Python 版の info_label） */
     val info: String,
+)
+
+/** 比較画面の状態。base は比較の基準（u-blox か再生）。 */
+class CompareView(
+    val base: Channel,
+    val baseRunning: Boolean,
+    val internalRunning: Boolean,
+    val baseSummary: SideSummary?,
+    val internalSummary: SideSummary?,
+    /** 両方とも新しい位置があるときだけ */
+    val diff: PositionDiff?,
+    val history: List<TimedDiff>,
+    val cn0: CommonCn0?,
 )
 
 /** 擬似ロケーションの状態。 */
@@ -108,6 +133,19 @@ class MonitorRepository(private val app: Context) {
     /** 記録の保存先（アプリ固有の外部ストレージ。権限は要らない） */
     val logFolder: File get() = app.getExternalFilesDir("logs") ?: File(app.filesDir, "logs")
 
+    /** 比較の基準（u-blox か再生） */
+    private val _compareBase = MutableStateFlow(
+        runCatching { Channel.valueOf(prefs.compareBase) }.getOrNull()?.takeIf { it != Channel.INTERNAL } ?: Channel.UBLOX
+    )
+    val compareBase: StateFlow<Channel> = _compareBase.asStateFlow()
+
+    private val _compare = MutableStateFlow<CompareView?>(null)
+    val compare: StateFlow<CompareView?> = _compare.asStateFlow()
+
+    /** 基準から見た内蔵 GNSS の位置の差の履歴（画面を開いていなくても 1 秒ごとに数える） */
+    private val diffHistory = DiffHistory()
+    private var lastPair: Pair<Pvt?, Pvt?> = null to null
+
     private var tick = 0
 
     init {
@@ -133,6 +171,7 @@ class MonitorRepository(private val app: Context) {
                 try {
                     checkSources()
                     updatePending()
+                    if (tick % MAIN_TICKS == 0) updateDiffHistory()
                     if (tick % MAIN_TICKS == 0 && _views.subscriptionCount.value > 0) publishViews()
                 } catch (e: Exception) {
                     addLog("内部エラー: ${e.message}")
@@ -260,9 +299,71 @@ class MonitorRepository(private val app: Context) {
     /** 通知の「切断」。動いているデータ源をすべて止める。 */
     fun disconnectAll() {
         disconnect()
-        if (isRunning(Channel.INTERNAL)) stopChannel(Channel.INTERNAL, app.getString(jp.kjtr.ubloxmonitor.R.string.status_disconnected))
+        if (isRunning(Channel.INTERNAL)) stopChannel(Channel.INTERNAL, app.getString(jp.kjtr.ubloxmonitor.R.string.internal_stopped))
         if (isRunning(Channel.REPLAY)) stopChannel(Channel.REPLAY, app.getString(jp.kjtr.ubloxmonitor.R.string.replay_stopped))
         publishViews()
+    }
+
+    // ---- 内蔵 GNSS ----
+
+    fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(app, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * 内蔵 GNSS を開始する（位置情報の権限が許可されてから呼ぶ）。u-blox とは独立に動く。
+     * サービスは startSource の中で起動し、権限があるので location 種別になる。
+     */
+    fun startInternal() {
+        if (!hasLocationPermission()) {
+            addLog(app.getString(jp.kjtr.ubloxmonitor.R.string.internal_no_permission))
+            return
+        }
+        val pipeline = newPipeline(Channel.INTERNAL)
+        val title = "${app.getString(jp.kjtr.ubloxmonitor.R.string.source_internal)}（${Build.MANUFACTURER} ${Build.MODEL}）"
+        startSource(Channel.INTERNAL, pipeline, InternalGnssSource(app, pipeline, title))
+    }
+
+    fun stopInternal() {
+        if (isRunning(Channel.INTERNAL)) stopChannel(Channel.INTERNAL, app.getString(jp.kjtr.ubloxmonitor.R.string.internal_stopped))
+        publishViews()
+    }
+
+    // ---- 比較 ----
+
+    /** 比較の基準を選ぶ（u-blox か再生）。差の履歴は消す。 */
+    fun setCompareBase(channel: Channel) {
+        if (channel == Channel.INTERNAL || channel == _compareBase.value) return
+        prefs.compareBase = channel.name
+        _compareBase.value = channel
+        diffHistory.clear()
+        lastPair = null to null
+        publishViews()
+    }
+
+    /** 基準と内蔵の両方に新しい位置があれば、差を履歴に足す（どちらかが更新されたときだけ）。 */
+    private fun updateDiffHistory() {
+        val base = runtimes[_compareBase.value]?.pipeline?.state ?: return
+        val internal = runtimes[Channel.INTERNAL]?.pipeline?.state ?: return
+        val bp = base.pvt ?: return
+        val ip = internal.pvt ?: return
+        if (base.clock() - base.pvtTime > STALE_SECONDS * 2 || internal.clock() - internal.pvtTime > STALE_SECONDS * 2) return
+        if (lastPair.first === bp && lastPair.second === ip) return
+        lastPair = bp to ip
+        val diff = Compare.diff(bp, ip) ?: return
+        diffHistory.add(TimedDiff(System.currentTimeMillis() / 1000.0, diff))
+    }
+
+    private fun buildCompare(map: Map<Channel, ChannelView>): CompareView {
+        val base = _compareBase.value
+        val b = map[base]
+        val i = map[Channel.INTERNAL]
+        val bs = b?.snapshot?.let { Compare.summary(it) }
+        val isum = i?.snapshot?.let { Compare.summary(it) }
+        val bp = b?.snapshot?.pvt
+        val ip = i?.snapshot?.pvt
+        val diff = if (bs?.fresh == true && isum?.fresh == true && bp != null && ip != null) Compare.diff(bp, ip) else null
+        val cn0 = if (b != null && i != null) Compare.commonCn0(b.snapshot, i.snapshot) else null
+        return CompareView(base, b?.running == true, i?.running == true, bs, isum, diff, diffHistory.toList(), cn0)
     }
 
     private fun generation(runtime: Runtime): String = runtime.pipeline.version?.gen ?: "Unknown"
@@ -294,9 +395,11 @@ class MonitorRepository(private val app: Context) {
             if (runtime.ended || runtime.source.isAlive) continue
             val error = runtime.source.error
             val message = when {
+                runtime.channel == Channel.INTERNAL ->
+                    app.getString(jp.kjtr.ubloxmonitor.R.string.internal_ended, error ?: "")
                 error != null -> "通信が切れました: $error"
                 runtime.channel.live -> app.getString(jp.kjtr.ubloxmonitor.R.string.status_disconnected)
-                else -> app.getString(jp.kjtr.ubloxmonitor.R.string.replay_finished)
+                else -> app.getString(jp.kjtr.ubloxmonitor.R.string.replay_finished_name, runtime.source.title)
             }
             runtime.ended = true
             runtime.endMessage = message
@@ -349,6 +452,9 @@ class MonitorRepository(private val app: Context) {
         val pipeline = newPipeline(Channel.REPLAY, clock)
         val source = ReplaySource(pipeline, input, speed, clock, size, name)
         startSource(Channel.REPLAY, pipeline, source)
+        // 再生でもログ欄に開始を出す（終了は checkSources で「再生が終わりました」）
+        val speedText = if (speed > 0) "%.0f 倍速".format(speed) else "最大"
+        pipeline.log(app.getString(jp.kjtr.ubloxmonitor.R.string.replay_started, name, speedText, "%.1f".format(size / 1e6)))
     }
 
     fun stopReplay() {
@@ -442,6 +548,7 @@ class MonitorRepository(private val app: Context) {
         val running = !runtime.ended && runtime.source.isAlive
         if (!running) return runtime.endMessage ?: ""
         if (!runtime.channel.live) return app.getString(jp.kjtr.ubloxmonitor.R.string.replay_running, runtime.source.title)
+        runtime.source.statusText?.let { return "${runtime.source.title}\n$it" }
         val v = runtime.pipeline.version
             ?: return app.getString(jp.kjtr.ubloxmonitor.R.string.connecting_wait, runtime.source.title)
         return "${v.gen} ${v.module}  HW ${v.hw}  SW ${v.sw}  PROTVER ${v.protver}"
@@ -467,6 +574,7 @@ class MonitorRepository(private val app: Context) {
             )
         }
         _views.value = map
+        _compare.value = buildCompare(map)
         val ms = _mockState.value
         if (ms.status == MockStatus.ACTIVE) _mockState.value = ms.copy(published = mock.published)
     }

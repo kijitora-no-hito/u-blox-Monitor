@@ -116,7 +116,52 @@ fun Cn0Bars(satellites: Map<String, SatView>, modifier: Modifier = Modifier, hei
     }
 }
 
-private val SERIES_COLORS = listOf(Color(0xFF2980B9), Color(0xFF27AE60), Color(0xFFE67E22), Color(0xFF8E44AD))
+/**
+ * 共通の衛星の C/N0 を 2 本の棒で並べる（比較画面）。rows は (衛星名, 基準の C/N0, 内蔵の C/N0)。
+ * 色はデータ源の地図の軌跡の色（u-blox 青・再生 紫・内蔵 赤）。
+ */
+@Composable
+fun Cn0CompareBars(
+    rows: List<Triple<String, Int, Int>>,
+    baseColor: Color,
+    otherColor: Color,
+    modifier: Modifier = Modifier,
+    height: Dp = 220.dp,
+) {
+    val tm = rememberTextMeasurer()
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val style = TextStyle(fontSize = 9.sp, color = textColor)
+    Canvas(modifier.fillMaxWidth().height(height)) {
+        val left = 30.dp.toPx()
+        val top = 12.dp.toPx()
+        val right = 8.dp.toPx()
+        val bottom = 34.dp.toPx()
+        val width = size.width - left - right
+        val h = size.height - top - bottom
+        for (cno in 0..ChartMath.CN0_MAX step 10) {
+            val y = top + h * (1 - cno.toFloat() / ChartMath.CN0_MAX)
+            drawLine(Color(0xFFC8C8C8), Offset(left, y), Offset(left + width, y), 1f)
+            label(tm, cno.toString(), left - 4.dp.toPx(), y, style, 1f, 0.5f)
+        }
+        if (rows.isEmpty()) return@Canvas
+        val slot = width / rows.size
+        val bar = maxOf(1.5.dp.toPx(), minOf(slot * 0.4f, 11.dp.toPx()))
+        rows.forEachIndexed { index, (name, a, b) ->
+            val x = left + slot * index + slot / 2 - bar
+            for ((k, v) in listOf(a, b).withIndex()) {
+                val bh = h * minOf(v, ChartMath.CN0_MAX) / ChartMath.CN0_MAX
+                drawRect(if (k == 0) baseColor else otherColor, Offset(x + bar * k, top + h - bh), Size(bar, bh))
+            }
+            val px = x + bar
+            val py = top + h + 4.dp.toPx()
+            rotate(90f, Offset(px, py)) {
+                label(tm, name, px, py, style, 0f, 0.5f)
+            }
+        }
+    }
+}
+
+private val SERIES_COLORS =listOf(Color(0xFF2980B9), Color(0xFF27AE60), Color(0xFFE67E22), Color(0xFF8E44AD))
 
 /**
  * 複数系列の時系列グラフ（Python 版 LineChart / ModeChart）。

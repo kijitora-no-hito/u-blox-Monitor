@@ -7,10 +7,10 @@ import jp.kjtr.ubloxmonitor.R
  *
  * - [UsbSerialSource]: u-blox 受信機（USB 直結・USB シリアル変換）
  * - [ReplaySource]: 記録済みの .ubx の再生
- * - 内蔵 GNSS（次のタスクで実装）: Android の GnssStatus / GnssMeasurementsEvent / Location から
- *   NAV-PVT・NAV-SAT・RXM-RAWX を合成して流す（組み立ては domain の Ubx.build と LeWriter を使う）。
+ * - [InternalGnssSource]: スマホ内蔵 GNSS。Android の GnssStatus / GnssMeasurementsEvent / Location から
+ *   NAV-PVT・NAV-SAT・RXM-RAWX を合成して流す（組み立ては domain の PhoneUbx / PhoneRawx）。
  *   擬似ロケーション ON 中は GPS_PROVIDER の位置が自分の擬似位置になるので、
- *   Location.isMock（API 31+）/ isFromMockProvider の位置は必ず捨てること（ループ防止）。
+ *   Location.isMock（API 31+）/ isFromMockProvider の位置は必ず捨てる（ループ防止）。
  *
  * 受信は各データ源のスレッドで行い、Pipeline（集計・記録）はデータ源ごとに 1 つ持つ（[Channel]）。
  */
@@ -26,6 +26,9 @@ interface Source {
 
     /** 止まった理由（正常終了・利用者の操作では null） */
     val error: String?
+
+    /** 動いている間に画面に出す状態（複数行可）。null なら既定の表示 */
+    val statusText: String? get() = null
 
     fun start()
 

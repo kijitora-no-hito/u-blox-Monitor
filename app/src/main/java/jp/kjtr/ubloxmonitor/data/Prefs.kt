@@ -2,6 +2,7 @@ package jp.kjtr.ubloxmonitor.data
 
 import android.content.Context
 import jp.kjtr.ubloxmonitor.domain.ChartMath
+import jp.kjtr.ubloxmonitor.domain.Compare
 import jp.kjtr.ubloxmonitor.domain.Link
 
 /** 画面の選択の保存（SharedPreferences）。 */
@@ -38,6 +39,16 @@ class Prefs(context: Context) {
     var mockLocation: Boolean
         get() = sp.getBoolean("mock_location", false)
         set(v) = sp.edit().putBoolean("mock_location", v).apply()
+
+    /** 比較の基準（Channel.name。UBLOX か REPLAY） */
+    var compareBase: String
+        get() = sp.getString("compare_base", "UBLOX") ?: "UBLOX"
+        set(v) = sp.edit().putString("compare_base", v).apply()
+
+    /** 比較画面の差のグラフの表示幅（Compare.WINDOWS の番号） */
+    var compareWindow: Int
+        get() = sp.getInt("compare_window", Compare.DEFAULT_WINDOW).coerceIn(0, Compare.WINDOWS.size - 1)
+        set(v) = sp.edit().putInt("compare_window", v).apply()
 
     /** 測位履歴グラフの表示幅（ChartMath.TIME_WINDOWS の番号） */
     var chartWindow: Int
