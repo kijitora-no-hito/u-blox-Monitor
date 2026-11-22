@@ -1,8 +1,8 @@
 # 受信機ライブラリ（ublox-core / ublox-android）
 
 u-blox Monitor（`jp.kjtr.ubloxmonitor`）の受信機まわりを、ほかのアプリ（自転車ルートロガー `cycle_route_logger`・
-ドライブロガー `drive_logger` など）からも使えるように 2 つのモジュールに分けたもの。版はライブラリとして **0.1.0**
-（アプリの版とは別）、groupId は `jp.kjtr.ublox`。
+ドライブロガー `drive_logger` など）からも使えるように 2 つのモジュールに分けたもの。版はライブラリとして **0.2.0**
+（アプリの版とは別。0.2.0 = `OutputProfile.Logger` に `keepRaw`）、groupId は `jp.kjtr.ublox`。
 
 | モジュール | 種類 | パッケージ / namespace | 中身 |
 |---|---|---|---|
@@ -72,7 +72,7 @@ data class GnssFix(fixType, fixRank, gnssFixOk, carrSoln, diffSoln, numSv, latit
 
 sealed class OutputProfile {
     data object Monitor                                        // NAV-PVT・NAV-SAT・RXM-RAWX・RXM-SFRBX・RXM-MEASX を毎エポック（u-blox Monitor）
-    data class Logger(rateHz: Int = 1, dynModel: DynModel? = DynModel.AUTOMOTIVE)
+    data class Logger(rateHz: Int = 1, dynModel: DynModel? = DynModel.AUTOMOTIVE, keepRaw: Boolean = false)   // keepRaw は 0.2.0〜
     companion object { MONITOR; LOGGER; RATES = [1, 2, 5, 10] }
 }
 enum class DynModel(value, label) { PORTABLE(0) STATIONARY(2) PEDESTRIAN(3) AUTOMOTIVE(4) SEA(5) AIRBORNE_1G/2G/4G(6-8) WRIST(9) BIKE(10) LAWN_MOWER(11) ESCOOTER(12) }
@@ -87,7 +87,8 @@ enum class DynModel(value, label) { PORTABLE(0) STATIONARY(2) PEDESTRIAN(3) AUTO
 |---|---|---|
 | NAV-PVT | 毎エポック | 毎エポック |
 | NAV-SAT | 毎エポック | rateHz エポックに 1 回（= 1 Hz） |
-| RXM-RAWX / SFRBX / MEASX | 毎エポック | **0（止める）** |
+| RXM-RAWX / SFRBX | 毎エポック | **0（止める）**。`keepRaw = true` なら毎エポック（生の .ubx を残すとき） |
+| RXM-MEASX | 毎エポック | 0（keepRaw でも止める） |
 | 測位レート | 変えない | CFG-RATE-MEAS = 1000 / rateHz ms・CFG-RATE-NAV = 1（M8 は CFG-RATE） |
 | ダイナミクスモデル | 変えない | CFG-NAVSPG-DYNMODEL（M8 は CFG-NAV5 の dynModel だけ mask） |
 
@@ -111,7 +112,7 @@ val candidates = ublox.devices()
 // 記録の開始（前面＝利用者の操作の直後に。許可のダイアログが出ることがある）
 ublox.connect(
     candidates.first(), baud = 921600,
-    ConnectOptions(profile = OutputProfile.Logger(rateHz = 1, dynModel = DynModel.BIKE)),   // 車は AUTOMOTIVE
+    ConnectOptions(profile = OutputProfile.Logger(rateHz = 1, dynModel = DynModel.BIKE, keepRaw = saveUbx)),   // 車は AUTOMOTIVE。.ubx を残すなら keepRaw
 ) { conn -> if (conn == null) showError((ublox.status.value as? ReceiverStatus.Error)?.message) }
 
 // FGS（RecordingService）の中で: 位置を Location にして今のトラックの処理へ
@@ -132,7 +133,7 @@ scope.launch {
     }
 }
 
-// 生の UBX も残すなら（PC 版の u-blox Monitor や RTKLIB で後から解析できる）
+// 生の UBX も残すなら（PC 版の u-blox Monitor や RTKLIB で後から解析できる）。RAWX・SFRBX を入れるには接続時に keepRaw = true
 ublox.startRecording(File(context.getExternalFilesDir("ubx"), ""), prefix = "ride")
 
 // 終わり
@@ -159,7 +160,39 @@ ublox.disconnect()
 - **精度の意味**: hAcc は u-blox の推定精度で、Android の accuracy（68%）とは定義が少し違う。RTK Fixed なら cm 級になる。
   `extras.getInt("carrSoln")` で RTK の状態を記録に残せる（GPX の `<fix>` や拡張に入れるなど）。
 
-## 取り込み方の 3 案（まだ決めていない）
+## 取り込み方
+
+**決めた方式（2026-11-22、自転車ルートロガー 0.13.0 から）: composite build ＋ mavenLocal の予備。**
+使う側の `settings.gradle.kts` で `local.properties` の `ublox.dir`（無ければ既定 `../../ublox_monitor/android`、使う側のフォルダからの相対）を読み、
+そのフォルダがあれば `includeBuild(dir)`（`jp.kjtr.ublox:ublox-android` / `ublox-core` の座標を `:ublox-android` / `:ublox-core` に置き換える）、
+無ければ `mavenLocal()` から（ここで `publishToMavenLocal` した版を）取る。どちらも依存は座標 `jp.kjtr.ublox:ublox-android:<版>` で書く。
+jitpack（`com.github.mik3y` だけ）は使う側の `dependencyResolutionManagement` にも要る。
+
+```kotlin
+// 使う側の settings.gradle.kts（cycle_route_logger の例）
+val localProps = java.util.Properties().apply {
+    val f = file("local.properties")
+    if (f.isFile) f.inputStream().use { load(it) }
+}
+val ubloxDir = file(localProps.getProperty("ublox.dir") ?: "../../ublox_monitor/android")
+val useUbloxSource = ubloxDir.resolve("settings.gradle.kts").isFile
+if (useUbloxSource) {
+    includeBuild(ubloxDir) {
+        dependencySubstitution {
+            substitute(module("jp.kjtr.ublox:ublox-android")).using(project(":ublox-android"))
+            substitute(module("jp.kjtr.ublox:ublox-core")).using(project(":ublox-core"))
+        }
+    }
+}
+// dependencyResolutionManagement の repositories に: if (!useUbloxSource) mavenLocal { content { includeGroup("jp.kjtr.ublox") } }
+```
+
+- composite build でも、このビルドの `:app` は設定（configure）されるだけで作られない（keystore.properties が無くても通る）。
+  AGP / Kotlin の版は使う側とそろえる（今はどちらも AGP 8.7.3 / Kotlin 2.0.21）。
+- 他の PC では u-blox-Monitor リポジトリを、`android/` が上の場所に来るように clone するか、`ublox.dir` を書くか、ここで `publishToMavenLocal` する。
+- 今使っているのは自転車ルートロガー（0.13.0〜）。ドライブロガーも同じ作りで入れる予定。
+
+検討したときの比較（参考）:
 
 | | mavenLocal に publish | ソースのコピー | composite build（includeBuild） |
 |---|---|---|---|
@@ -169,17 +202,17 @@ ublox.disconnect()
 | ビルドの重さ | 軽い（aar / jar） | ふつう | ublox_monitor の設定も読む（app は作らない） |
 | 向き | 版を決めて配るとき | 手を入れて別物にしてよいとき | ライブラリも一緒に直しながら作るとき |
 
-おすすめ: **開発中は composite build、公開する版を作るときは mavenLocal の版を固定**（どちらも座標が同じなので切り替えは settings の 1 行）。
+当時のおすすめ: **開発中は composite build、公開する版を作るときは mavenLocal の版を固定**（どちらも座標が同じなので切り替えは settings の 1 行）。
 ソースのコピーは「このワークスペースは 1 アプリ = 1 フォルダで完結」の決まりには合うが、二重管理になる。
 いずれの案でも、ロガーの `settings.gradle.kts` の `dependencyResolutionManagement` に jitpack（`com.github.mik3y` だけ）を足すこと
 （usb-serial-for-android は Maven Central に無い）。
 
 ```powershell
-# 確認済み（2026-11-22）
+# 確認済み（2026-11-22、0.2.0）
 $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
-cd d:\work\android\ublox_monitor
+cd d:\work\ublox_monitor\android
 .\gradlew.bat publishToMavenLocal
-# → ~/.m2/repository/jp/kjtr/ublox/ublox-core/0.1.0（jar・sources・pom・module）、ublox-android/0.1.0（aar・sources・pom・module）
+# → ~/.m2/repository/jp/kjtr/ublox/ublox-core/0.2.0（jar・sources・pom・module）、ublox-android/0.2.0（aar・sources・pom・module）
 ```
 
-ライブラリの版（0.1.0）は `ublox-core/build.gradle.kts`・`ublox-android/build.gradle.kts` の `version`。公開 API を変えたら上げる。
+ライブラリの版（0.2.0）は `ublox-core/build.gradle.kts`・`ublox-android/build.gradle.kts` の `version`。公開 API を変えたら上げる。

@@ -96,6 +96,27 @@ class ReceiverTest {
         assertEquals(8 + 7, OutputProfile.Logger(1, DynModel.BIKE).packets("Unknown", "USB").size)
     }
 
+    @Test
+    fun loggerProfileKeepRawOutputsRawxAndSfrbx() {
+        // 既定は生データを止める（今までどおり）
+        assertFalse(OutputProfile.Logger().keepRaw)
+        assertEquals(OutputProfile.Logger(), OutputProfile.LOGGER)
+        val f = frames(OutputProfile.Logger(rateHz = 1, dynModel = DynModel.BIKE, keepRaw = true).packets("F9", "USB"))
+        val values = f.associate { fr -> Ubx.parseValget(fr.payload).entries.single().let { it.key to hex(it.value) } }
+        assertEquals("01", values[0x20910009L])     // NAV-PVT
+        assertEquals("01", values[0x209102A7L])     // RXM-RAWX 毎エポック
+        assertEquals("01", values[0x20910234L])     // RXM-SFRBX 毎エポック
+        assertEquals("00", values[0x20910207L])     // RXM-MEASX は止めたまま
+        assertEquals(8, f.size)
+        // M8 も同じ（CFG-MSG の rate）
+        val m8 = frames(OutputProfile.Logger(rateHz = 1, dynModel = null, keepRaw = true).packets("M8", "USB"))
+            .filter { it.msg == Ubx.CFG_MSG }.map { hex(it.payload) }
+        assertTrue("021501" in m8)   // RXM-RAWX
+        assertTrue("021301" in m8)   // RXM-SFRBX
+        assertTrue("021400" in m8)   // RXM-MEASX
+        assertTrue(OutputProfile.Logger(keepRaw = true).label.contains("RAWX"))
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun loggerRateMustBeSupported() {
         OutputProfile.Logger(rateHz = 3)

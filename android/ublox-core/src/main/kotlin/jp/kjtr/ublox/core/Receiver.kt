@@ -117,24 +117,31 @@ sealed class OutputProfile {
      * ロガー用。NAV-PVT を毎エポック、NAV-SAT を 1 秒に 1 回だけ出し、モニター用の RAWX・SFRBX・MEASX は止める。
      * 測位レート rateHz（1 / 2 / 5 / 10。CFG-RATE-MEAS = 1000 / rateHz ms、CFG-RATE-NAV = 1）と
      * ダイナミクスモデル（null なら変えない）も設定する。
-     * 10 Hz では NAV-PVT だけで約 1 KB/秒になるので、UART 経由なら 115200 bps 以上にすること。
+     * keepRaw = true（生の .ubx も残すとき）は RXM-RAWX・RXM-SFRBX を毎エポック出す（後で RTKLIB などで解析できる。MEASX は止めたまま）。
+     * 10 Hz では NAV-PVT だけで約 1 KB/秒になるので、UART 経由なら 115200 bps 以上にすること（keepRaw ならもっと要る）。
      */
-    data class Logger(val rateHz: Int = 1, val dynModel: DynModel? = DynModel.AUTOMOTIVE) : OutputProfile() {
+    data class Logger(
+        val rateHz: Int = 1,
+        val dynModel: DynModel? = DynModel.AUTOMOTIVE,
+        val keepRaw: Boolean = false,
+    ) : OutputProfile() {
         init {
             require(rateHz in RATES) { "rateHz は ${RATES.joinToString("/")} のどれか" }
         }
 
-        override val label get() = "ロガー（NAV-PVT ${rateHz} Hz・NAV-SAT 1 Hz${dynModel?.let { "・${it.label}" } ?: ""}）"
+        override val label get() =
+            "ロガー（NAV-PVT ${rateHz} Hz・NAV-SAT 1 Hz${if (keepRaw) "・RAWX・SFRBX" else ""}${dynModel?.let { "・${it.label}" } ?: ""}）"
 
         val measRateMs: Int get() = 1000 / rateHz
 
         override fun packets(gen: String, receiverPort: String): List<ByteArray> {
             val packets = ArrayList<ByteArray>()
+            val raw = if (keepRaw) 1 else 0
             if (gen in listOf("F9", "X20", "Unknown")) {
                 val offset = Link.PORT_OFFSETS.getValue(receiverPort)
                 val rates = linkedMapOf(
                     Ubx.NAV_PVT to 1, Ubx.NAV_SAT to rateHz,
-                    Ubx.RXM_RAWX to 0, Ubx.RXM_SFRBX to 0, Ubx.RXM_MEASX to 0,
+                    Ubx.RXM_RAWX to raw, Ubx.RXM_SFRBX to raw, Ubx.RXM_MEASX to 0,
                 )
                 rates.forEach { (msg, rate) ->
                     packets.add(Ubx.buildValset(mapOf(Link.MSGOUT_KEYS.getValue(msg) + offset to rate.toLong())))
@@ -146,7 +153,9 @@ sealed class OutputProfile {
             if (gen in listOf("M8", "Unknown")) {
                 packets.add(Ubx.buildCfgMsg(Ubx.NAV_PVT, 1))
                 packets.add(Ubx.buildCfgMsg(Ubx.NAV_SAT, rateHz))
-                listOf(Ubx.RXM_RAWX, Ubx.RXM_SFRBX, Ubx.RXM_MEASX).forEach { packets.add(Ubx.buildCfgMsg(it, 0)) }
+                packets.add(Ubx.buildCfgMsg(Ubx.RXM_RAWX, raw))
+                packets.add(Ubx.buildCfgMsg(Ubx.RXM_SFRBX, raw))
+                packets.add(Ubx.buildCfgMsg(Ubx.RXM_MEASX, 0))
                 packets.add(Ubx.buildRate(measRateMs, 1, 1))
                 // mask が dynModel だけなので、残りの欄（0）は受信機に無視される
                 dynModel?.let { packets.add(Ubx.buildNav5(ByteArray(36), mapOf("dynmodel" to it.value))) }
