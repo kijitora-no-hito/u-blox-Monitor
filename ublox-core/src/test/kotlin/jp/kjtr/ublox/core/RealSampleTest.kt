@@ -36,6 +36,10 @@ class RealSampleTest {
         assertNotNull(pvt.latitude)
         assertTrue(snap.satellites.isNotEmpty())
         assertTrue(snap.satellites.values.count { it.used } > 0)
+        pipeline.version?.let { v ->
+            println("MON-VER: ${v.extensions}")
+            ReceiverConfig.supportedSystems(v)?.let { assertTrue("X20P は GLONASS 非対応", "GLO" !in it) }
+        }
         println(
             "X20P: ${pvt.fixLabel} 使用 ${pvt.numSv} 機、衛星 ${snap.satellites.size} 機、信号 ${snap.signals.size} 種、" +
                 "時計 ${clock.value} 秒、メッセージ ${snap.counts.size} 種 ${snap.counts}"

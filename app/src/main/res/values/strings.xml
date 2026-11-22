@@ -166,6 +166,7 @@
     <string name="settings_send">変更を送信</string>
     <string name="settings_gen">世代</string>
     <string name="settings_layers">保存先</string>
+    <string name="settings_layer_help">保存先: %1$s</string>
     <string name="settings_gen_info">設定に使う世代: %1$s（MON-VER の判別: %2$s）</string>
     <string name="settings_gen_help">世代は通常「自動判別」のまま。MON-VER の応答が無い場合は手動で選びます。</string>
     <string name="settings_nav">測位と追尾</string>

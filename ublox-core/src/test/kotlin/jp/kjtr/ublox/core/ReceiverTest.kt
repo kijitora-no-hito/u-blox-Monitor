@@ -114,3 +114,34 @@ class ReceiverTest {
         assertEquals(data.size.toLong(), bytes)
     }
 }
+
+/** MON-VER の拡張の衛星系の行で、受信機が対応しない衛星系・信号を「—（非対応）」にする（X20P の GLONASS）。 */
+class SupportedSystemsTest {
+    private fun version(systems: List<String>) =
+        Ubx.parseMonVer(UbxStream().feed(UbxSamples.monVer("ZED-X20P", "50.02", "000B0000", systems)).single().payload)!!
+
+    @Test
+    fun x20pHasNoGlonass() {
+        val v = version(listOf("GPS;GAL;BDS", "SBAS;QZSS", "NAVIC"))
+        val supported = ReceiverConfig.supportedSystems(v)!!
+        assertEquals(setOf("GPS", "GAL", "BDS", "SBAS", "QZSS", "NAVIC"), supported)
+        val unsupported = ReceiverConfig.unsupportedItems(supported)
+        assertEquals(setOf("GLO", "GLO_L1", "GLO_L2"), unsupported)
+        // X20P は GLONASS のキーにも 0 を返す（NAK にならない）が、現在値には入れない
+        val cfg = mapOf(0x10310025L to byteArrayOf(0), 0x10310018L to byteArrayOf(0), 0x1031001FL to byteArrayOf(1))
+        val values = ReceiverConfig.currentValues("X20", cfg, null, null, unsupported)
+        assertEquals(mapOf("GPS" to 1), values)
+        // 変更も送らない（現在値に無い項目は changed に入らない）
+        assertTrue(ReceiverConfig.changed(values, mapOf("GLO" to 1, "GPS" to 1)).isEmpty())
+    }
+
+    @Test
+    fun f9pWithGlonassAndOldFirmware() {
+        val f9p = ReceiverConfig.supportedSystems(version(listOf("GPS;GLO;GAL;BDS", "SBAS;QZSS")))
+        assertEquals(setOf("NAVIC", "NAVIC_L5"), ReceiverConfig.unsupportedItems(f9p))
+        // 衛星系の行が無い古いファームウェアは今までどおり（値の有無だけ）
+        assertNull(ReceiverConfig.supportedSystems(version(emptyList())))
+        assertTrue(ReceiverConfig.unsupportedItems(null).isEmpty())
+        assertNull(ReceiverConfig.supportedSystems(null))
+    }
+}

@@ -42,7 +42,8 @@ import jp.kjtr.ublox.core.Ubx
 /**
  * 受信機設定（Python 版 SettingsPanel）。接続時に読み出した現在値を表示し、変更した項目だけを確認のあとで送る。
  * F9 / X20 は設定キー、M8 は CFG-NAV5 / CFG-RATE（衛星系・信号・入力プロトコルは出さない）。
- * VALGET に返ってこないキー（X20 の GLONASS など）は「—（非対応）」にして操作できなくする。
+ * VALGET に返ってこないキーと、MON-VER の拡張（GPS;GAL;BDS など）に無い衛星系とその信号（X20P の GLONASS）は
+ * 「—（非対応）」にして操作できなくする（X20P は GLONASS のキーにも 0 を返すので、値の有無だけでは分からない）。
  */
 @Composable
 fun ReceiverSettingsScreen(repo: MonitorRepository, padding: PaddingValues) {
@@ -88,18 +89,25 @@ fun ReceiverSettingsScreen(repo: MonitorRepository, padding: PaddingValues) {
                         Text(stringResource(R.string.settings_send))
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Dropdown(
-                        stringResource(R.string.settings_gen), ReceiverConfig.GENERATIONS, sv.genChoice,
-                        { repo.setSettingsGen(it) }, Modifier.weight(1f),
-                    )
-                    Dropdown(
-                        stringResource(R.string.settings_layers), ReceiverConfig.LAYERS, sv.layers,
-                        { repo.setSettingsLayers(it) }, Modifier.weight(1.4f),
-                    )
+                // 幅が狭いときは縦に並べる（保存先の名前が「RAM のみ（電源を」で切れていたため。説明は下の行に分けた）
+                val genBox: @Composable (Modifier) -> Unit = { m ->
+                    Dropdown(stringResource(R.string.settings_gen), ReceiverConfig.GENERATIONS, sv.genChoice, { repo.setSettingsGen(it) }, m)
+                }
+                val layerBox: @Composable (Modifier) -> Unit = { m ->
+                    Dropdown(stringResource(R.string.settings_layers), ReceiverConfig.LAYERS, sv.layers, { repo.setSettingsLayers(it) }, m)
+                }
+                if (wide) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        genBox(Modifier.weight(1f))
+                        layerBox(Modifier.weight(1f))
+                    }
+                } else {
+                    genBox(Modifier.fillMaxWidth())
+                    layerBox(Modifier.fillMaxWidth())
                 }
                 Text(
-                    stringResource(R.string.settings_gen_info, sv.gen, sv.detected ?: "—") + "\n" +
+                    stringResource(R.string.settings_layer_help, ReceiverConfig.LAYER_HELP[sv.layers].orEmpty()) + "\n" +
+                        stringResource(R.string.settings_gen_info, sv.gen, sv.detected ?: "—") + "\n" +
                         stringResource(R.string.settings_gen_help),
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -108,12 +116,12 @@ fun ReceiverSettingsScreen(repo: MonitorRepository, padding: PaddingValues) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(Modifier.weight(1f)) { NavSection(sv.values, sv.readDone, enabled, chosen, texts, { chosen = it }, { texts = it }) }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TrackingSections(keyed, sv.values, sv.readDone, enabled, chosen) { chosen = it }
+                        TrackingSections(keyed, sv.values, sv.readDone, sv.unsupported, enabled, chosen) { chosen = it }
                     }
                 }
             } else {
                 NavSection(sv.values, sv.readDone, enabled, chosen, texts, { chosen = it }, { texts = it })
-                TrackingSections(keyed, sv.values, sv.readDone, enabled, chosen) { chosen = it }
+                TrackingSections(keyed, sv.values, sv.readDone, sv.unsupported, enabled, chosen) { chosen = it }
             }
         }
     }
@@ -212,6 +220,7 @@ private fun TrackingSections(
     keyed: Boolean,
     values: Map<String, Int>,
     readDone: Boolean,
+    unsupported: Set<String>,
     enabled: Boolean,
     chosen: Map<String, Int>,
     onChosen: (Map<String, Int>) -> Unit,
@@ -221,45 +230,50 @@ private fun TrackingSections(
         return
     }
     Section(stringResource(R.string.settings_systems)) {
-        Checks(ReceiverConfig.SYSTEM_ITEMS, values, readDone, enabled, chosen, onChosen, hideUnknown = false)
+        Checks(ReceiverConfig.SYSTEM_ITEMS, values, readDone, unsupported, enabled, chosen, onChosen, hideUnknown = false)
         Text(stringResource(R.string.settings_tracking_note), style = MaterialTheme.typography.bodySmall)
     }
     Section(stringResource(R.string.settings_signals)) {
         if (ReceiverConfig.SIGNAL_ITEMS.none { it.ident in values }) {
             Text(stringResource(R.string.settings_no_signals), style = MaterialTheme.typography.bodySmall)
         }
-        Checks(ReceiverConfig.SIGNAL_ITEMS, values, readDone, enabled, chosen, onChosen, hideUnknown = true)
+        Checks(ReceiverConfig.SIGNAL_ITEMS, values, readDone, unsupported, enabled, chosen, onChosen, hideUnknown = true)
     }
     Section(stringResource(R.string.settings_inputs)) {
-        Checks(ReceiverConfig.INPUT_ITEMS, values, readDone, enabled, chosen, onChosen, hideUnknown = false)
+        Checks(ReceiverConfig.INPUT_ITEMS, values, readDone, unsupported, enabled, chosen, onChosen, hideUnknown = false)
     }
 }
 
-/** チェックボックスを左上から詰めて並べる。hideUnknown は読めなかった項目を出さない（信号）。 */
+/**
+ * チェックボックスを左上から詰めて並べる。hideUnknown は読めなかった項目を出さない（信号）。
+ * unsupported（MON-VER で対応しない衛星系とその信号）は hideUnknown でも出して「—（非対応）」にする。
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Checks(
     items: List<ConfigItem>,
     values: Map<String, Int>,
     readDone: Boolean,
+    unsupported: Set<String>,
     enabled: Boolean,
     chosen: Map<String, Int>,
     onChosen: (Map<String, Int>) -> Unit,
     hideUnknown: Boolean,
 ) {
-    val unsupported = stringResource(R.string.settings_unsupported).removePrefix("—")
+    val unsupportedText = stringResource(R.string.settings_unsupported).removePrefix("—")
     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         for (item in items) {
             val known = item.ident in values
-            if (!known && hideUnknown) continue
+            val notSupported = item.ident in unsupported
+            if (!known && hideUnknown && !notSupported) continue
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
-                    checked = (chosen[item.ident] ?: values[item.ident] ?: 0) != 0,
+                    checked = !notSupported && (chosen[item.ident] ?: values[item.ident] ?: 0) != 0,
                     onCheckedChange = { onChosen(chosen + (item.ident to if (it) 1 else 0)) },
-                    enabled = enabled && known,
+                    enabled = enabled && known && !notSupported,
                 )
                 Text(
-                    item.label + if (!known && readDone) unsupported else "",
+                    item.label + if (notSupported || (!known && readDone)) unsupportedText else "",
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (known) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 )

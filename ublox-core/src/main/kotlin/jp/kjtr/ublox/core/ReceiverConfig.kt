@@ -23,9 +23,14 @@ data class ConfigItem(
 
 object ReceiverConfig {
     val GENERATIONS = listOf("自動判別" to null, "F9 / X20" to "F9", "M8" to "M8")
+    /** 保存先（プルダウンに出す短い名前, 値）。説明は LAYER_HELP（幅 360dp でも名前が切れないように分けた） */
     val LAYERS = listOf(
-        "RAM のみ（電源を切ると戻る）" to Ubx.LAYER_RAM,
-        "RAM + BBR + Flash（保存する）" to (Ubx.LAYER_RAM or Ubx.LAYER_BBR or Ubx.LAYER_FLASH),
+        "RAM のみ" to Ubx.LAYER_RAM,
+        "RAM + BBR + Flash" to (Ubx.LAYER_RAM or Ubx.LAYER_BBR or Ubx.LAYER_FLASH),
+    )
+    val LAYER_HELP = mapOf(
+        Ubx.LAYER_RAM to "今の設定だけを変えます。電源を切ると元に戻ります。",
+        (Ubx.LAYER_RAM or Ubx.LAYER_BBR or Ubx.LAYER_FLASH) to "BBR と Flash にも保存します。電源を入れ直しても残ります。",
     )
 
     val NAV_ITEMS = listOf(
@@ -84,6 +89,39 @@ object ReceiverConfig {
     val ITEM_BY_IDENT = ITEMS.associateBy { it.ident }
     private val TRACKING_IDENTS = (SYSTEM_ITEMS + SIGNAL_ITEMS).map { it.ident }.toSet()
 
+    /** MON-VER の拡張の衛星系の行（例 `GPS;GAL;BDS`・`SBAS;QZSS`・`NAVIC`）の名前 → 衛星系の項目 ID（IMES は項目なし） */
+    val MONVER_SYSTEMS: Map<String, String?> = mapOf(
+        "GPS" to "GPS", "SBAS" to "SBAS", "GAL" to "GAL", "BDS" to "BDS", "QZSS" to "QZSS", "GLO" to "GLO",
+        "NAVIC" to "NAVIC", "IMES" to null,
+    )
+
+    /**
+     * MON-VER の拡張から受信機が対応する衛星系（衛星系の項目 ID の集合）を返す。衛星系の行が無い（古いファームウェア）なら null。
+     * X20P は GLONASS のキーを VALGET すると 0 を返す（NAK にならない）ので、値の有無だけでは非対応と分からないため。
+     */
+    fun supportedSystems(version: MonVer?): Set<String>? {
+        version ?: return null
+        val systems = LinkedHashSet<String>()
+        var found = false
+        for (ext in version.extensions) {
+            if ('=' in ext) continue
+            val names = ext.split(';').map { it.trim().uppercase() }.filter { it.isNotEmpty() }
+            if (names.isEmpty() || names.any { it !in MONVER_SYSTEMS }) continue
+            found = true
+            names.mapNotNullTo(systems) { MONVER_SYSTEMS[it] }
+        }
+        return if (found) systems else null
+    }
+
+    /** 対応しない衛星系の項目と、その衛星系の信号の項目の ID（supported が null なら空）。 */
+    fun unsupportedItems(supported: Set<String>?): Set<String> {
+        supported ?: return emptySet()
+        val out = LinkedHashSet<String>()
+        SYSTEM_ITEMS.filter { it.ident !in supported }.mapTo(out) { it.ident }
+        SIGNAL_ITEMS.filter { it.ident.substringBefore('_') !in supported }.mapTo(out) { it.ident }
+        return out
+    }
+
     /** 設定キーで読み書きする世代か。 */
     fun usesKeys(gen: String) = gen != "M8"
 
@@ -109,11 +147,17 @@ object ReceiverConfig {
         return v.toInt()
     }
 
-    /** 受信機から読んだ内容を {項目 ID: 整数値} にする。読めていない項目は含めない。 */
-    fun currentValues(gen: String, cfgValues: Map<Long, ByteArray>, nav5: ByteArray?, rate: Rate?): Map<String, Int> {
+    /**
+     * 受信機から読んだ内容を {項目 ID: 整数値} にする。読めていない項目と unsupported（MON-VER で対応しない衛星系とその信号）は含めない
+     * （含めないので画面では「—（非対応）」になり、変更も送らない）。
+     */
+    fun currentValues(
+        gen: String, cfgValues: Map<Long, ByteArray>, nav5: ByteArray?, rate: Rate?, unsupported: Set<String> = emptySet(),
+    ): Map<String, Int> {
         val values = LinkedHashMap<String, Int>()
         if (usesKeys(gen)) {
             for (item in ITEMS) {
+                if (item.ident in unsupported) continue
                 val raw = cfgValues[item.key] ?: continue
                 values[item.ident] = fromBytes(raw, item.signed)
             }

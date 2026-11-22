@@ -92,9 +92,12 @@ object UbxSamples {
     private fun padded(text: String, size: Int) = text.toByteArray(Charsets.US_ASCII).copyOf(size)
 
     /** MON-VER を作る。 */
-    fun monVer(module: String = "ZED-F9P", protver: String = "27.50", hardware: String = "00190000"): ByteArray {
+    fun monVer(
+        module: String = "ZED-F9P", protver: String = "27.50", hardware: String = "00190000",
+        systems: List<String> = emptyList(),
+    ): ByteArray {
         val w = LeWriter().bytes(padded("EXT CORE 1.00 (abcdef)", 30)).bytes(padded(hardware, 10))
-        for (ext in listOf("ROM BASE 0x118B2060", "FWVER=HPG 1.50", "PROTVER=$protver", "MOD=$module")) {
+        for (ext in listOf("ROM BASE 0x118B2060", "FWVER=HPG 1.50", "PROTVER=$protver", "MOD=$module") + systems) {
             w.bytes(padded(ext, 30))
         }
         return Ubx.build(Ubx.MON_VER, w.toByteArray())

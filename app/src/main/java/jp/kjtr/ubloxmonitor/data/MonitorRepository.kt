@@ -99,6 +99,11 @@ class SettingsView(
     val status: String,
     val readDone: Boolean,
     val awaitingAck: Boolean,
+    /**
+     * MON-VER の拡張（GPS;GAL;BDS など）から分かった、受信機が対応しない衛星系とその信号の項目 ID。
+     * 拡張に衛星系の行が無い古いファームウェアでは空（値が返ってくるかどうかだけで判断する）。
+     */
+    val unsupported: Set<String> = emptySet(),
 )
 
 /** 擬似ロケーションの状態。 */
@@ -535,7 +540,13 @@ class MonitorRepository(private val app: Context) {
     }
 
     private fun currentSettingValues(runtime: Runtime): Map<String, Int> =
-        ReceiverConfig.currentValues(generation(runtime), runtime.pipeline.cfgValues, runtime.pipeline.nav5, runtime.pipeline.rate)
+        ReceiverConfig.currentValues(
+            generation(runtime), runtime.pipeline.cfgValues, runtime.pipeline.nav5, runtime.pipeline.rate, unsupportedItems(runtime),
+        )
+
+    /** MON-VER から分かる、対応しない衛星系とその信号。 */
+    private fun unsupportedItems(runtime: Runtime): Set<String> =
+        ReceiverConfig.unsupportedItems(ReceiverConfig.supportedSystems(runtime.pipeline.version))
 
     /** 読み出しの応答（設定キーごとの ACK / NAK、M8 は CFG-NAV5 / RATE）がそろったか、5 秒たったか。 */
     private fun readDone(runtime: Runtime): Boolean {
@@ -560,6 +571,7 @@ class MonitorRepository(private val app: Context) {
             status = if (runtime == null) app.getString(jp.kjtr.ubloxmonitor.R.string.settings_not_connected) else settingsStatus,
             readDone = runtime?.let { readDone(it) } == true,
             awaitingAck = awaitingAck,
+            unsupported = runtime?.let { unsupportedItems(it) } ?: emptySet(),
         )
     }
 
