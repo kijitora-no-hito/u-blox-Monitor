@@ -19,6 +19,25 @@
     <string name="more_spectrum_help">RF のスペクトル（MON-SPAN）。現在値・最大値ホールド・平均、タッチで周波数とレベル</string>
     <string name="more_monitor_help">信号（RAWX / MEASX）・SFRBX モニター・5 分間のトレンド</string>
     <string name="more_logs_help">記録した UBX ログの再生・共有・削除</string>
+    <string name="nav_about">このアプリについて</string>
+    <string name="more_about_help">版・ライセンス・使っているソフトウェア・出典</string>
+
+    <!-- このアプリについて -->
+    <string name="about_version">版 %1$s</string>
+    <string name="about_summary">u-blox 受信機（M8 / F9 / X20 シリーズ）を USB でつないで、測位状態・衛星・RF スペクトル・生の測定値を見るアプリです。PC 版（Windows）の u-blox Monitor の Android 版です。</string>
+    <string name="about_source_title">ソースコード・ダウンロード</string>
+    <string name="about_source_url" translatable="false">https://github.com/kijitora-no-hito/u-blox-Monitor</string>
+    <string name="about_license_title">ライセンス</string>
+    <string name="about_license">MIT License\nCopyright (c) 2026 Rei Furukawa (kijitora-no-hito)</string>
+    <string name="about_trademark">u-blox は u-blox AG の商標です。このアプリは u-blox AG とは関係のない個人の作品です。</string>
+    <string name="about_oss_title">使っているソフトウェア</string>
+    <string name="about_oss">usb-serial-for-android（MIT License）\nosmdroid（Apache License 2.0）\nAndroidX・Jetpack Compose・Kotlin・kotlinx.coroutines（Apache License 2.0）</string>
+    <string name="about_apache_link">Apache License 2.0 の全文</string>
+    <string name="about_apache_url" translatable="false">https://www.apache.org/licenses/LICENSE-2.0</string>
+    <string name="about_data_title">地図の出典</string>
+    <string name="about_data">地図タイル: 出典：国土地理院（地理院タイル 標準地図・淡色地図・写真）</string>
+    <string name="about_privacy_title">通信について</string>
+    <string name="about_privacy">地図を表示したときに国土地理院のタイルを取得し、RTK 補正を使ったときに入力した NTRIP キャスターなどに接続します（GGA を送る設定のときは現在位置も送ります）。それ以外の通信はしません。記録は端末の中だけに保存します。</string>
 
     <!-- データ源 -->
     <string name="source_ublox">u-blox</string>

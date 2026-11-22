@@ -127,6 +127,7 @@ private enum class More(val label: Int, val help: Int, val icon: ImageVector) {
     SPECTRUM(R.string.nav_spectrum, R.string.more_spectrum_help, Icons.Filled.Search),
     MONITOR(R.string.nav_monitor, R.string.more_monitor_help, Icons.Filled.Star),
     LOGS(R.string.nav_logs, R.string.more_logs_help, Icons.AutoMirrored.Filled.List),
+    ABOUT(R.string.nav_about, R.string.more_about_help, Icons.Filled.Info),
 }
 
 @Composable
@@ -195,6 +196,7 @@ private fun AppRoot(repo: MonitorRepository, startTab: Int) {
                                     More.SPECTRUM -> SpectrumScreen(repo, inner)
                                     More.MONITOR -> MonitorScreen(repo, inner)
                                     More.LOGS -> LogsScreen(repo, inner, onPlay = { tab = TAB_MAIN })
+                                    More.ABOUT -> AboutScreen(inner)
                                 }
                             }
                         }
@@ -218,7 +220,7 @@ private fun MoreScreen(repo: MonitorRepository, padding: PaddingValues, onOpen: 
             val status = when (page) {
                 More.CORRECTION -> if (correction.running) repo.correction.statusLine() else null
                 More.SETTINGS -> if (settings.connected) settings.status else null
-                More.SPECTRUM, More.MONITOR, More.LOGS -> null
+                More.SPECTRUM, More.MONITOR, More.LOGS, More.ABOUT -> null
             }
             Card(Modifier.fillMaxWidth().clickable { onOpen(page) }) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
