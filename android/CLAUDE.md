@@ -8,7 +8,12 @@ STALE_SECONDS、帯域の振り分け、接続時の設定送信など）。共�
 
 - アプリ名: u-blox Monitor / applicationId・namespace・パッケージ: `jp.kjtr.ubloxmonitor`（公開後は変えない）
 - minSdk 24 / compileSdk・targetSdk 36（edge-to-edge 強制。Scaffold は `WindowInsets.safeDrawing`）。縦横どちらも対応（幅 600dp 以上で 2 列）
-- versionCode 5 / versionName 0.4.1（0.4.0 = 3 段目: スペクトル・u-blox モニター、受信機まわりのライブラリ化。0.4.1 = エミュレータで見つかった u-blox モニターの修正。未公開・配布方法は未定）
+- versionCode 6 / versionName 0.4.2（0.4.0 = 3 段目: スペクトル・u-blox モニター、受信機まわりのライブラリ化。0.4.1 = エミュレータで見つかった u-blox モニターの修正。
+  0.4.2 = 「その他」→「このアプリについて」（版・MIT・使っているソフトウェアのライセンス・地図の出典・通信）を追加。**GitHub で公開（プレビュー）**）
+- **置き場所・配布（2026-11-22〜）**: PC 版の公開リポジトリ `kijitora-no-hito/u-blox-Monitor`（public・MIT）の `android/` に同居（git subtree で履歴ごと取り込み）。
+  正本は `d:\work\ublox_monitor\android`（`d:\work\android\ublox_monitor` はそこを指すジャンクションの予定）。git 操作は `d:\work\ublox_monitor` で行う。
+  APK はそのリポジトリの Releases に `android-v<版>` のタグで（Windows 版は `v<版>`。Windows 版を Latest のままにするため Android 版は prerelease）。
+  ファイル名は `ublox_monitor_android_<版>.apk`。README の「ダウンロード」の表とリンク・SHA-256 を版ごとに直す。**公開リポジトリなので位置入りのログ・スクリーンショットを入れない**
 - ライブラリ `:ublox-core` / `:ublox-android` は版 **0.1.0**（groupId `jp.kjtr.ublox`。アプリの版とは別。公開 API・取り込み方は `docs/LIBRARY.md`）
 - 権限: INTERNET・ACCESS_NETWORK_STATE（地図タイルだけ）、FOREGROUND_SERVICE(_CONNECTED_DEVICE / _LOCATION)、POST_NOTIFICATIONS、
   ACCESS_FINE/COARSE_LOCATION（内蔵 GNSS と location 種別のサービス用。接続タブで［内蔵 GNSS を開始］を押したときに実行時に要求）、
@@ -18,7 +23,8 @@ STALE_SECONDS、帯域の振り分け、接続時の設定送信など）。共�
   （GGA を送る設定なら u-blox の現在位置も送る）
 - バックアップ: allowBackup="false" に加えて `data_extraction_rules.xml` / `backup_rules.xml` で `correction_secret.xml`
   （パスワードの暗号化値）と `settings.xml` を外す（Android 12+ の端末間転送は allowBackup では止まらないため）
-- 署名: release は `keystore.properties` があれば使う（gps_camera と同じ形。鍵はまだ作っていない。作ったら `release.jks` とともに git 管理外・バックアップ）
+- 署名: release は `keystore.properties` があれば使う（gps_camera と同じ形）。鍵 `release.jks`（alias `ubloxmonitor`、RSA 4096、2026-11-22 作成、
+  証明書 SHA-256 `6806c3b4…802d5`）。どちらも git 管理外。**失うと上書き更新できないので PC 外にバックアップ**
 
 ## ライブラリ（`gradle/libs.versions.toml`）
 
